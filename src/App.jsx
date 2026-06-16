@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 
 const BACKEND_URL = "https://fix-parser-backend.onrender.com/api/parse";
+const BACKEND_LOG_URL = "https://fix-parser-backend.onrender.com/api/parse-log";
 
 const SECTION_STYLES = {
   header: { bg: "#e3f2fd", border: "#1976d2", label: "Header" },
@@ -13,6 +14,41 @@ const SPEED_OPTIONS = {
   normal: 1800,
   fast: 800,
 };
+
+// Badge color per message type, for the Session/Log timeline view
+function badgeStyleForMsgType(msgTypeName) {
+  const name = (msgTypeName || "").toLowerCase();
+  if (name.includes("reject")) return { bg: "#ffebee", fg: "#c62828", border: "#e57373" };
+  if (name.includes("cancel")) return { bg: "#fff3e0", fg: "#e65100", border: "#ffb74d" };
+  if (name.includes("execution") || name.includes("fill")) return { bg: "#e8f5e9", fg: "#2e7d32", border: "#81c784" };
+  if (name.includes("new order")) return { bg: "#e3f2fd", fg: "#1565c0", border: "#64b5f6" };
+  if (name.includes("logon") || name.includes("logout") || name.includes("heartbeat") || name.includes("test request")) {
+    return { bg: "#f3e5f5", fg: "#6a1b9a", border: "#ba68c8" };
+  }
+  return { bg: "#eceff1", fg: "#37474f", border: "#90a4ae" };
+}
+
+function Badge({ text }) {
+  const style = badgeStyleForMsgType(text);
+  return (
+    <span
+      style={{
+        display: "inline-block",
+        padding: "3px 10px",
+        borderRadius: "12px",
+        fontSize: "12px",
+        fontWeight: "bold",
+        background: style.bg,
+        color: style.fg,
+        border: `1px solid ${style.border}`,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {text}
+    </span>
+  );
+}
+
 
 function FieldTable({ rows, sectionKey }) {
   const style = SECTION_STYLES[sectionKey];
@@ -336,6 +372,297 @@ function WalkthroughView({ result, originalInput }) {
   );
 }
 
+// ---------- Session / Log View ----------
+// Builds a map of clOrdID -> set of related clOrdIDs (via origClOrdID chains)
+// so selecting one message highlights its whole lineage in the timeline.
+function buildRelatedIdMap(messages) {
+  // union-find-ish grouping: start each clOrdID in its own group, merge via origClOrdID
+  const parent = {};
+  const find = (x) => {
+    if (!(x in parent)) parent[x] = x;
+    while (parent[x] !== x) x = parent[x];
+    return x;
+  };
+  const union = (a, b) => {
+    const ra = find(a);
+    const rb = find(b);
+    if (ra !== rb) parent[ra] = rb;
+  };
+
+  messages.forEach((m) => {
+    if (m.clOrdID) find(m.clOrdID);
+    if (m.origClOrdID) {
+      find(m.origClOrdID);
+      if (m.clOrdID) union(m.clOrdID, m.origClOrdID);
+    }
+  });
+
+  // groupKey per message
+  const groupKeyForId = {};
+  Object.keys(parent).forEach((id) => {
+    groupKeyForId[id] = find(id);
+  });
+
+  return groupKeyForId;
+}
+
+function SessionView() {
+  const [logInput, setLogInput] = useState("");
+  const [messages, setMessages] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [selectedIdx, setSelectedIdx] = useState(null);
+  const [detailMode, setDetailMode] = useState("table"); // "table" or "walkthrough"
+
+  const SAMPLE_LOG_KEY = "sample";
+
+  const loadSample = () => {
+    const sample = [
+      "8=FIX.4.4|9=61|35=A|49=EXEC|56=BANZAI|34=1|52=20260613-23:24:06|98=0|108=30|10=097|",
+      "8=FIX.4.4|9=116|35=D|49=BANZAI|56=EXEC|34=2|52=20260613-23:24:42|11=ORD1001|55=MSFT|54=1|38=10000|40=2|44=12.3|60=20260613-23:24:42|10=199|",
+      "8=FIX.4.4|9=123|35=8|49=EXEC|56=BANZAI|34=2|52=20260613-23:24:42|37=EXECORD1|11=ORD1001|17=EXEC1|150=0|39=0|55=MSFT|54=1|38=10000|14=0|6=0|10=233|",
+      "8=FIX.4.4|9=133|35=8|49=EXEC|56=BANZAI|34=3|52=20260613-23:24:42|37=EXECORD1|11=ORD1001|17=EXEC2|150=2|39=2|55=MSFT|54=1|38=10000|32=10000|31=12.3|14=10000|6=12.3|10=011|",
+      "8=FIX.4.4|9=112|35=D|49=BANZAI|56=EXEC|34=4|52=20260613-23:25:12|11=ORD1002|55=SPY|54=1|38=10000|40=2|44=10|60=20260613-23:25:12|10=003|",
+      "8=FIX.4.4|9=119|35=8|49=EXEC|56=BANZAI|34=4|52=20260613-23:25:12|37=EXECORD2|11=ORD1002|17=EXEC3|150=0|39=0|55=SPY|54=1|38=10000|14=0|6=0|10=144|",
+      "8=FIX.4.4|9=98|35=F|49=BANZAI|56=EXEC|34=5|52=20260613-23:25:16|11=ORD1003|41=ORD1002|55=SPY|54=1|60=20260613-23:25:16|10=078|",
+      "8=FIX.4.4|9=86|35=3|49=EXEC|56=BANZAI|34=5|52=20260613-23:25:16|45=5|58=Unsupported message type|372=F|373=3|10=066|",
+    ].join("");
+    setLogInput(sample);
+  };
+
+  const handleProcess = async () => {
+    setLoading(true);
+    setError(null);
+    setMessages(null);
+    setSelectedIdx(null);
+    try {
+      const res = await fetch(BACKEND_LOG_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: logInput,
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.message || "Server error");
+      }
+      const data = await res.json();
+      setMessages(data.messages);
+      if (data.messages && data.messages.length > 0) setSelectedIdx(0);
+    } catch (err) {
+      setError(err.message || "Failed to reach backend. It may be waking up (cold start) — try again in a moment.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const groupKeyForId = messages ? buildRelatedIdMap(messages) : {};
+  const selectedMsg = messages && selectedIdx !== null ? messages[selectedIdx] : null;
+  const selectedGroupKey = selectedMsg && selectedMsg.clOrdID ? groupKeyForId[selectedMsg.clOrdID] : null;
+
+  return (
+    <div>
+      <p style={{ color: "#666", marginTop: 0 }}>
+        Paste a whole log — multiple FIX messages back to back. Each message must start with{" "}
+        <code>8=FIX...</code>; they'll be split and parsed automatically.
+      </p>
+
+      <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+        <button onClick={loadSample} style={navBtnStyle(false)}>
+          Load Sample Data
+        </button>
+        <button
+          onClick={() => {
+            setLogInput("");
+            setMessages(null);
+            setSelectedIdx(null);
+            setError(null);
+          }}
+          style={navBtnStyle(false)}
+        >
+          Clear
+        </button>
+      </div>
+
+      <textarea
+        value={logInput}
+        onChange={(e) => setLogInput(e.target.value)}
+        rows={6}
+        placeholder="Paste a multi-message FIX log here, or click Load Sample Data above..."
+        style={{
+          width: "100%",
+          fontFamily: "monospace",
+          fontSize: "12px",
+          padding: "10px",
+          boxSizing: "border-box",
+          border: "1px solid #ccc",
+          borderRadius: "4px",
+        }}
+      />
+
+      <button
+        onClick={handleProcess}
+        disabled={loading || !logInput.trim()}
+        style={{
+          marginTop: "10px",
+          padding: "10px 24px",
+          fontSize: "15px",
+          fontWeight: "bold",
+          background: loading ? "#aaa" : "#1976d2",
+          color: "#fff",
+          border: "none",
+          borderRadius: "4px",
+          cursor: loading ? "default" : "pointer",
+        }}
+      >
+        {loading ? "Processing..." : "Process Log"}
+      </button>
+
+      {loading && (
+        <p style={{ color: "#888", marginTop: "10px" }}>
+          Contacting backend — may take up to 50 seconds if it's waking up from sleep...
+        </p>
+      )}
+
+      {error && (
+        <div
+          style={{
+            marginTop: "16px",
+            padding: "12px",
+            background: "#ffebee",
+            border: "1px solid #e57373",
+            borderRadius: "4px",
+            color: "#c62828",
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      {messages && (
+        <div style={{ marginTop: "20px", display: "flex", gap: "20px", flexWrap: "wrap" }}>
+          {/* Timeline */}
+          <div style={{ flex: "1 1 380px", minWidth: "320px" }}>
+            <div style={{ fontWeight: "bold", marginBottom: "8px", color: "#444" }}>
+              Timeline · {messages.length} messages
+            </div>
+            <div style={{ border: "1px solid #ddd", borderRadius: "6px", maxHeight: "560px", overflowY: "auto" }}>
+              {messages.map((m, i) => {
+                const isSelected = i === selectedIdx;
+                const isRelated =
+                  selectedGroupKey !== null &&
+                  m.clOrdID &&
+                  groupKeyForId[m.clOrdID] === selectedGroupKey &&
+                  !isSelected;
+                return (
+                  <div
+                    key={i}
+                    onClick={() => setSelectedIdx(i)}
+                    style={{
+                      padding: "10px 12px",
+                      borderBottom: "1px solid #eee",
+                      cursor: "pointer",
+                      background: isSelected ? "#e3f2fd" : isRelated ? "#fffde7" : "#fff",
+                      borderLeft: isSelected
+                        ? "4px solid #1976d2"
+                        : isRelated
+                        ? "4px solid #fbc02d"
+                        : "4px solid transparent",
+                      transition: "background 0.15s ease",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                      <span style={{ fontSize: "11px", color: "#888", fontFamily: "monospace" }}>
+                        {m.sendingTime || `#${i}`}
+                      </span>
+                      <span style={{ fontSize: "11px", color: "#888" }}>
+                        {m.senderCompID} → {m.targetCompID}
+                      </span>
+                    </div>
+                    <div style={{ marginBottom: "4px" }}>
+                      <Badge text={m.msgTypeName} />
+                      {!m.isValid && (
+                        <span style={{ marginLeft: "6px", fontSize: "11px", color: "#c62828", fontWeight: "bold" }}>
+                          ⚠ invalid
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: "13px", color: "#333" }}>{m.summary}</div>
+                    {m.clOrdID && (
+                      <div style={{ fontSize: "11px", color: "#999", marginTop: "2px", fontFamily: "monospace" }}>
+                        ClOrdID: {m.clOrdID}
+                        {m.origClOrdID && ` (orig: ${m.origClOrdID})`}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Detail panel */}
+          <div style={{ flex: "1 1 420px", minWidth: "320px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+              <div style={{ fontWeight: "bold", color: "#444" }}>Detail</div>
+              {selectedMsg && (
+                <div>
+                  <button onClick={() => setDetailMode("table")} style={tabStyle(detailMode === "table")}>
+                    Table
+                  </button>
+                  <button onClick={() => setDetailMode("walkthrough")} style={tabStyle(detailMode === "walkthrough")}>
+                    Walkthrough
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {!selectedMsg && (
+              <div style={{ color: "#888", fontSize: "13px", padding: "20px", textAlign: "center", border: "1px dashed #ccc", borderRadius: "6px" }}>
+                Select a message from the timeline to see its details.
+              </div>
+            )}
+
+            {selectedMsg && (
+              <div>
+                <div
+                  style={{
+                    padding: "10px 14px",
+                    borderRadius: "4px",
+                    marginBottom: "12px",
+                    background: selectedMsg.isValid ? "#e8f5e9" : "#ffebee",
+                    border: `2px solid ${selectedMsg.isValid ? "#388e3c" : "#e57373"}`,
+                    color: selectedMsg.isValid ? "#2e7d32" : "#c62828",
+                    fontWeight: "bold",
+                    fontSize: "13px",
+                  }}
+                >
+                  {selectedMsg.isValid ? "✓ Valid" : "✗ Validation Errors"}
+                  {!selectedMsg.isValid && (
+                    <ul style={{ marginTop: "6px", fontWeight: "normal", fontSize: "12px" }}>
+                      {selectedMsg.validationErrors.map((e, idx) => (
+                        <li key={idx}>{e}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                {detailMode === "table" ? (
+                  <div style={{ maxHeight: "500px", overflowY: "auto" }}>
+                    <FieldTable rows={selectedMsg.components.header} sectionKey="header" />
+                    <FieldTable rows={selectedMsg.components.body} sectionKey="body" />
+                    <FieldTable rows={selectedMsg.components.trailer} sectionKey="trailer" />
+                  </div>
+                ) : (
+                  <WalkthroughView result={selectedMsg} originalInput={selectedMsg.rawMessage} />
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function App() {
   const [input, setInput] = useState(
     "8=FIX.4.4|9=120|35=D|49=SENDER|56=TARGET|34=12|52=20260613-18:15:00|11=ClOrd123|55=AAPL|54=1|38=100|40=2|44=150.00|60=20260613-18:15:00|10=068|"
@@ -345,6 +672,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [viewMode, setViewMode] = useState("table");
+  const [appMode, setAppMode] = useState("single"); // "single" or "session"
 
   const handleParse = async () => {
     setLoading(true);
@@ -371,8 +699,22 @@ function App() {
   };
 
   return (
-    <div style={{ maxWidth: "900px", margin: "0 auto", padding: "24px", fontFamily: "system-ui, sans-serif" }}>
+    <div style={{ maxWidth: appMode === "session" ? "1100px" : "900px", margin: "0 auto", padding: "24px", fontFamily: "system-ui, sans-serif" }}>
       <h1 style={{ marginBottom: "4px" }}>FIX Message Parser</h1>
+
+      <div style={{ marginBottom: "20px" }}>
+        <button onClick={() => setAppMode("single")} style={modeTabStyle(appMode === "single")}>
+          Single Message
+        </button>
+        <button onClick={() => setAppMode("session")} style={modeTabStyle(appMode === "session")}>
+          Session / Log View
+        </button>
+      </div>
+
+      {appMode === "session" ? (
+        <SessionView />
+      ) : (
+        <>
       <p style={{ color: "#666", marginTop: 0 }}>
         Paste a FIX protocol message below. Delimiter (<code>|</code>, SOH, <code>;</code>, <code>^</code>) is auto-detected.
       </p>
@@ -492,8 +834,24 @@ function App() {
           )}
         </div>
       )}
+      </>
+      )}
     </div>
   );
+}
+
+function modeTabStyle(active) {
+  return {
+    padding: "10px 20px",
+    marginRight: "8px",
+    border: "none",
+    borderBottom: active ? "3px solid #1976d2" : "3px solid transparent",
+    background: "transparent",
+    color: active ? "#1976d2" : "#666",
+    cursor: "pointer",
+    fontWeight: active ? "bold" : "normal",
+    fontSize: "15px",
+  };
 }
 
 function tabStyle(active) {
