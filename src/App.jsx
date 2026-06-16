@@ -413,8 +413,40 @@ function SessionView() {
   const [error, setError] = useState(null);
   const [selectedIdx, setSelectedIdx] = useState(null);
   const [detailMode, setDetailMode] = useState("table"); // "table" or "walkthrough"
+  const [fileName, setFileName] = useState(null);
+  const fileInputRef = useRef(null);
 
   const SAMPLE_LOG_KEY = "sample";
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+
+    const allowedExtensions = [".txt", ".log"];
+    const lowerName = file.name.toLowerCase();
+    const isAllowed = allowedExtensions.some((ext) => lowerName.endsWith(ext));
+    if (!isAllowed) {
+      setError("Please upload a .txt or .log file.");
+      e.target.value = "";
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      setLogInput(evt.target.result);
+      setFileName(file.name);
+      setError(null);
+      setMessages(null);
+      setSelectedIdx(null);
+    };
+    reader.onerror = () => {
+      setError("Could not read that file. Please try again or paste the log text directly.");
+    };
+    reader.readAsText(file);
+
+    // reset the input so selecting the same file again still fires onChange
+    e.target.value = "";
+  };
 
   const loadSample = () => {
     const sample = [
@@ -462,32 +494,52 @@ function SessionView() {
   return (
     <div>
       <p style={{ color: "#666", marginTop: 0 }}>
-        Paste a whole log — multiple FIX messages back to back. Each message must start with{" "}
-        <code>8=FIX...</code>; they'll be split and parsed automatically.
+        Paste a whole log, or upload a <code>.txt</code>/<code>.log</code> file — multiple FIX messages back to
+        back. Stray text, timestamps, or blank lines mixed in are automatically ignored; each real message is
+        found and parsed on its own.
       </p>
 
-      <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+      <div style={{ display: "flex", gap: "8px", marginBottom: "8px", flexWrap: "wrap", alignItems: "center" }}>
         <button onClick={loadSample} style={navBtnStyle(false)}>
           Load Sample Data
         </button>
+        <button onClick={() => fileInputRef.current && fileInputRef.current.click()} style={navBtnStyle(false)}>
+          📁 Upload File
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".txt,.log"
+          onChange={handleFileSelect}
+          style={{ display: "none" }}
+        />
         <button
           onClick={() => {
             setLogInput("");
             setMessages(null);
             setSelectedIdx(null);
             setError(null);
+            setFileName(null);
           }}
           style={navBtnStyle(false)}
         >
           Clear
         </button>
+        {fileName && (
+          <span style={{ fontSize: "12px", color: "#666" }}>
+            Loaded: <strong>{fileName}</strong>
+          </span>
+        )}
       </div>
 
       <textarea
         value={logInput}
-        onChange={(e) => setLogInput(e.target.value)}
+        onChange={(e) => {
+          setLogInput(e.target.value);
+          if (fileName) setFileName(null);
+        }}
         rows={6}
-        placeholder="Paste a multi-message FIX log here, or click Load Sample Data above..."
+        placeholder="Paste a multi-message FIX log here, click Load Sample Data, or upload a .txt/.log file..."
         style={{
           width: "100%",
           fontFamily: "monospace",
