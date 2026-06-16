@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const BACKEND_URL = "https://fix-parser-backend.onrender.com/api/parse";
 
@@ -6,6 +6,12 @@ const SECTION_STYLES = {
   header: { bg: "#e3f2fd", border: "#1976d2", label: "Header" },
   body: { bg: "#e8f5e9", border: "#388e3c", label: "Body" },
   trailer: { bg: "#fffde7", border: "#fbc02d", label: "Trailer" },
+};
+
+const SPEED_OPTIONS = {
+  slow: 3000,
+  normal: 1800,
+  fast: 800,
 };
 
 function FieldTable({ rows, sectionKey }) {
@@ -64,40 +70,166 @@ function sectionOf(field, result) {
   return "body";
 }
 
-function WalkthroughView({ result }) {
+// Builds the raw FIX string with each field's character range, so we can highlight
+// the portion already "revealed" as the user steps through.
+function buildRawSegments(originalInput, seq, delimDisplay) {
+  // We reconstruct segments by re-splitting on the detected delimiter character
+  // present in the original input (best effort — falls back gracefully).
+  let delim = "|";
+  if (originalInput.includes("\x01")) delim = "\x01";
+  else if (originalInput.includes(";")) delim = ";";
+  else if (originalInput.includes("^") && !originalInput.includes("|")) delim = "^";
+  else if (originalInput.includes("|")) delim = "|";
+
+  const rawParts = originalInput.split(delim).filter((p) => p.length > 0);
+  return rawParts; // one string per field, in order, like "8=FIX.4.4"
+}
+
+function MessageBuildupView({ originalInput, seq, stepIdx, result }) {
+  const rawParts = buildRawSegments(originalInput, seq);
+
+  return (
+    <div
+      style={{
+        fontFamily: "monospace",
+        fontSize: "13px",
+        background: "#1e1e1e",
+        color: "#ddd",
+        padding: "14px",
+        borderRadius: "6px",
+        marginBottom: "16px",
+        wordBreak: "break-all",
+        lineHeight: "1.8",
+      }}
+    >
+      {rawParts.map((part, i) => {
+        const field = seq[i];
+        const section = field ? sectionOf(field, result) : "body";
+        const style = SECTION_STYLES[section];
+        const isRevealed = i <= stepIdx;
+        const isCurrent = i === stepIdx;
+        return (
+          <span
+            key={i}
+            style={{
+              display: "inline-block",
+              padding: "2px 4px",
+              marginRight: "2px",
+              borderRadius: "3px",
+              transition: "all 0.25s ease",
+              background: isRevealed ? style.border : "transparent",
+              color: isRevealed ? "#fff" : "#555",
+              fontWeight: isCurrent ? "bold" : "normal",
+              transform: isCurrent ? "scale(1.08)" : "scale(1)",
+              boxShadow: isCurrent ? `0 0 0 2px #fff, 0 0 8px ${style.border}` : "none",
+            }}
+          >
+            {part}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function WalkthroughView({ result, originalInput }) {
   const [stepIdx, setStepIdx] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [speed, setSpeed] = useState("normal");
+  const [fade, setFade] = useState(true);
+  const intervalRef = useRef(null);
+
   const seq = result.sequence;
   const current = seq[stepIdx];
   const section = sectionOf(current, result);
   const style = SECTION_STYLES[section];
 
   const goNext = () => setStepIdx((i) => Math.min(i + 1, seq.length - 1));
-  const goPrev = () => setStepIdx((i) => Math.max(i - 1, 0));
+  const goPrev = () => {
+    setIsPlaying(false);
+    setStepIdx((i) => Math.max(i - 1, 0));
+  };
+  const jumpTo = (i) => {
+    setIsPlaying(false);
+    setStepIdx(i);
+  };
+
+  // Trigger fade animation whenever step changes
+  useEffect(() => {
+    setFade(false);
+    const t = setTimeout(() => setFade(true), 30);
+    return () => clearTimeout(t);
+  }, [stepIdx]);
+
+  // Auto-play loop
+  useEffect(() => {
+    if (isPlaying) {
+      intervalRef.current = setInterval(() => {
+        setStepIdx((i) => {
+          if (i >= seq.length - 1) {
+            setIsPlaying(false);
+            return i;
+          }
+          return i + 1;
+        });
+      }, SPEED_OPTIONS[speed]);
+    } else if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [isPlaying, speed, seq.length]);
+
+  const togglePlay = () => {
+    if (stepIdx >= seq.length - 1) setStepIdx(0);
+    setIsPlaying((p) => !p);
+  };
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+      <MessageBuildupView originalInput={originalInput} seq={seq} stepIdx={stepIdx} result={result} />
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "10px" }}>
         <div style={{ fontSize: "13px", color: "#666" }}>
           Field {stepIdx + 1} of {seq.length}
         </div>
-        <div style={{ display: "flex", gap: "8px" }}>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+          <select
+            value={speed}
+            onChange={(e) => setSpeed(e.target.value)}
+            style={{ padding: "6px 8px", borderRadius: "4px", border: "1px solid #ccc" }}
+          >
+            <option value="slow">Slow</option>
+            <option value="normal">Normal</option>
+            <option value="fast">Fast</option>
+          </select>
+          <button onClick={togglePlay} style={playBtnStyle(isPlaying)}>
+            {isPlaying ? "⏸ Pause" : "▶ Play"}
+          </button>
           <button onClick={goPrev} disabled={stepIdx === 0} style={navBtnStyle(stepIdx === 0)}>
             ← Prev
           </button>
-          <button onClick={goNext} disabled={stepIdx === seq.length - 1} style={navBtnStyle(stepIdx === seq.length - 1)}>
+          <button
+            onClick={() => {
+              setIsPlaying(false);
+              goNext();
+            }}
+            disabled={stepIdx === seq.length - 1}
+            style={navBtnStyle(stepIdx === seq.length - 1)}
+          >
             Next →
           </button>
         </div>
       </div>
 
-      {/* progress bar */}
       <div style={{ height: "6px", background: "#eee", borderRadius: "3px", marginBottom: "20px", overflow: "hidden" }}>
         <div
           style={{
             height: "100%",
             width: `${((stepIdx + 1) / seq.length) * 100}%`,
             background: style.border,
-            transition: "width 0.2s ease",
+            transition: "width 0.3s ease",
           }}
         />
       </div>
@@ -108,6 +240,9 @@ function WalkthroughView({ result }) {
           borderRadius: "8px",
           padding: "20px",
           background: style.bg,
+          opacity: fade ? 1 : 0,
+          transform: fade ? "translateY(0)" : "translateY(6px)",
+          transition: "opacity 0.25s ease, transform 0.25s ease",
         }}
       >
         <div style={{ fontSize: "12px", fontWeight: "bold", color: style.border, textTransform: "uppercase", marginBottom: "8px" }}>
@@ -129,7 +264,16 @@ function WalkthroughView({ result }) {
         <div style={{ marginTop: "16px", display: "flex", gap: "24px", flexWrap: "wrap" }}>
           <div>
             <div style={{ fontSize: "12px", color: "#777" }}>Raw Value</div>
-            <div style={{ fontSize: "18px", fontFamily: "monospace", background: "#fff", padding: "4px 10px", borderRadius: "4px", display: "inline-block" }}>
+            <div
+              style={{
+                fontSize: "18px",
+                fontFamily: "monospace",
+                background: "#fff",
+                padding: "4px 10px",
+                borderRadius: "4px",
+                display: "inline-block",
+              }}
+            >
               {current.raw}
             </div>
           </div>
@@ -139,14 +283,28 @@ function WalkthroughView({ result }) {
           </div>
         </div>
 
+        <div
+          style={{
+            marginTop: "18px",
+            padding: "12px 14px",
+            background: "rgba(255,255,255,0.7)",
+            borderRadius: "6px",
+            borderLeft: `4px solid ${style.border}`,
+          }}
+        >
+          <div style={{ fontSize: "11px", fontWeight: "bold", color: style.border, textTransform: "uppercase", marginBottom: "4px" }}>
+            Why this matters
+          </div>
+          <div style={{ fontSize: "14px", color: "#333", lineHeight: "1.5" }}>{current.why}</div>
+        </div>
+
         {current.isGroupCounter && (
-          <div style={{ marginTop: "16px", fontSize: "13px", color: "#555", fontStyle: "italic" }}>
+          <div style={{ marginTop: "12px", fontSize: "13px", color: "#555", fontStyle: "italic" }}>
             This field tells the parser how many repeating entries follow.
           </div>
         )}
       </div>
 
-      {/* mini timeline of all fields, click to jump */}
       <div style={{ display: "flex", gap: "4px", marginTop: "16px", flexWrap: "wrap" }}>
         {seq.map((f, i) => {
           const s = sectionOf(f, result);
@@ -154,7 +312,7 @@ function WalkthroughView({ result }) {
           return (
             <button
               key={i}
-              onClick={() => setStepIdx(i)}
+              onClick={() => jumpTo(i)}
               title={`${f.tag} ${f.name}`}
               style={{
                 width: "28px",
@@ -166,6 +324,7 @@ function WalkthroughView({ result }) {
                 borderRadius: "4px",
                 cursor: "pointer",
                 fontFamily: "monospace",
+                transition: "all 0.15s ease",
               }}
             >
               {f.tag}
@@ -182,9 +341,10 @@ function App() {
     "8=FIX.4.4|9=120|35=D|49=SENDER|56=TARGET|34=12|52=20260613-18:15:00|11=ClOrd123|55=AAPL|54=1|38=100|40=2|44=150.00|60=20260613-18:15:00|10=068|"
   );
   const [result, setResult] = useState(null);
+  const [parsedInput, setParsedInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [viewMode, setViewMode] = useState("table"); // "table" or "walkthrough"
+  const [viewMode, setViewMode] = useState("table");
 
   const handleParse = async () => {
     setLoading(true);
@@ -202,6 +362,7 @@ function App() {
       }
       const data = await res.json();
       setResult(data);
+      setParsedInput(input);
     } catch (err) {
       setError(err.message || "Failed to reach backend. It may be waking up (cold start) — try again in a moment.");
     } finally {
@@ -312,16 +473,10 @@ function App() {
           </div>
 
           <div style={{ marginBottom: "16px" }}>
-            <button
-              onClick={() => setViewMode("table")}
-              style={tabStyle(viewMode === "table")}
-            >
+            <button onClick={() => setViewMode("table")} style={tabStyle(viewMode === "table")}>
               Table View
             </button>
-            <button
-              onClick={() => setViewMode("walkthrough")}
-              style={tabStyle(viewMode === "walkthrough")}
-            >
+            <button onClick={() => setViewMode("walkthrough")} style={tabStyle(viewMode === "walkthrough")}>
               Step-by-Step Walkthrough
             </button>
           </div>
@@ -333,7 +488,7 @@ function App() {
               <FieldTable rows={result.components.trailer} sectionKey="trailer" />
             </>
           ) : (
-            <WalkthroughView result={result} />
+            <WalkthroughView result={result} originalInput={parsedInput} />
           )}
         </div>
       )}
@@ -362,6 +517,18 @@ function navBtnStyle(disabled) {
     color: disabled ? "#aaa" : "#333",
     borderRadius: "4px",
     cursor: disabled ? "default" : "pointer",
+  };
+}
+
+function playBtnStyle(isPlaying) {
+  return {
+    padding: "6px 16px",
+    border: "none",
+    background: isPlaying ? "#e57373" : "#388e3c",
+    color: "#fff",
+    borderRadius: "4px",
+    cursor: "pointer",
+    fontWeight: "bold",
   };
 }
 
