@@ -890,14 +890,15 @@ function App() {
   };
 
   return (
-    <div style={{ background: t.bg, minHeight: "100vh", color: t.text, fontFamily: "system-ui, -apple-system, sans-serif" }}>
+    <div style={{ background: t.bg, minHeight: "100vh", width: "100%", color: t.text, fontFamily: "system-ui, -apple-system, sans-serif" }}>
       <div
         style={{
           borderBottom: `1px solid ${t.border}`,
-          padding: "16px 24px",
+          padding: "16px 32px",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
+          background: t.panelBg,
         }}
       >
         <div style={{ display: "flex", alignItems: "baseline", gap: "10px" }}>
@@ -920,8 +921,8 @@ function App() {
         </button>
       </div>
 
-      <div style={{ maxWidth: appMode === "session" ? "1100px" : "900px", margin: "0 auto", padding: "24px" }}>
-        <div style={{ marginBottom: "20px", borderBottom: `1px solid ${t.border}` }}>
+      <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "32px", width: "100%", boxSizing: "border-box" }}>
+        <div style={{ marginBottom: "24px", borderBottom: `1px solid ${t.border}` }}>
           <button onClick={() => setAppMode("single")} style={modeTabStyle(appMode === "single", t)}>
             Single Message
           </button>
@@ -937,102 +938,140 @@ function App() {
         {appMode === "lookup" && <TagSearchView t={t} />}
 
         {appMode === "single" && (
-          <>
-            <p style={{ color: t.textMuted, marginTop: 0 }}>
-              Paste a FIX protocol message below. Delimiter (<code>|</code>, SOH, <code>;</code>, <code>^</code>) is auto-detected.
-            </p>
-
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              rows={5}
+          <div style={{ display: "flex", gap: "24px", alignItems: "flex-start", flexWrap: "wrap" }}>
+            <div
               style={{
-                width: "100%",
-                fontFamily: "monospace",
-                fontSize: "13px",
-                padding: "10px",
-                boxSizing: "border-box",
+                flex: "0 0 380px",
+                minWidth: "320px",
+                background: t.panelBg,
                 border: `1px solid ${t.border}`,
-                borderRadius: "4px",
-                background: t.inputBg,
-                color: t.text,
+                borderRadius: "10px",
+                padding: "20px",
+                boxShadow: themeName === "dark" ? "0 1px 3px rgba(0,0,0,0.3)" : "0 1px 3px rgba(0,0,0,0.06)",
               }}
-            />
+            >
+              <p style={{ color: t.textMuted, marginTop: 0, fontSize: "13px" }}>
+                Paste a FIX protocol message below. Delimiter (<code>|</code>, SOH, <code>;</code>, <code>^</code>) is auto-detected.
+              </p>
 
-            <button onClick={handleParse} disabled={loading || !input.trim()} style={primaryBtnStyle(t, loading)}>
-              {loading ? "Parsing..." : "Parse FIX Message"}
-            </button>
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                rows={7}
+                style={{
+                  width: "100%",
+                  fontFamily: "monospace",
+                  fontSize: "12px",
+                  padding: "10px",
+                  boxSizing: "border-box",
+                  border: `1px solid ${t.border}`,
+                  borderRadius: "6px",
+                  background: t.inputBg,
+                  color: t.text,
+                  resize: "vertical",
+                }}
+              />
 
-            {loading && <p style={{ color: t.textMuted, marginTop: "10px" }}>Contacting backend — may take up to 50 seconds if it's waking up from sleep...</p>}
+              <button
+                onClick={handleParse}
+                disabled={loading || !input.trim()}
+                style={{ ...primaryBtnStyle(t, loading), width: "100%", boxSizing: "border-box" }}
+              >
+                {loading ? "Parsing..." : "Parse FIX Message"}
+              </button>
 
-            {error && (
-              <div style={{ marginTop: "16px", padding: "12px", background: t.invalid.bg, border: `1px solid ${t.invalid.border}`, borderRadius: "4px", color: t.invalid.fg }}>
-                {error}
-              </div>
-            )}
+              {loading && <p style={{ color: t.textMuted, marginTop: "10px", fontSize: "13px" }}>Contacting backend — may take up to 50 seconds if it's waking up from sleep...</p>}
 
-            {result && (
-              <div style={{ marginTop: "24px" }}>
+              {error && (
+                <div style={{ marginTop: "16px", padding: "12px", background: t.invalid.bg, border: `1px solid ${t.invalid.border}`, borderRadius: "6px", color: t.invalid.fg, fontSize: "13px" }}>
+                  {error}
+                </div>
+              )}
+
+              {result && (
+                <div style={{ marginTop: "20px", paddingTop: "16px", borderTop: `1px solid ${t.border}` }}>
+                  <div
+                    style={{
+                      padding: "10px 12px",
+                      borderRadius: "6px",
+                      marginBottom: "12px",
+                      background: result.isValid ? t.valid.bg : t.invalid.bg,
+                      border: `2px solid ${result.isValid ? t.valid.border : t.invalid.border}`,
+                      color: result.isValid ? t.valid.fg : t.invalid.fg,
+                      fontWeight: "bold",
+                      fontSize: "13px",
+                    }}
+                  >
+                    {result.isValid ? "✓ Valid" : "✗ Errors Found"}
+                    {" · "}
+                    <span style={{ fontWeight: "normal" }}>{result.msgTypeName}</span>
+                    {!result.isValid && (
+                      <ul style={{ marginTop: "8px", fontWeight: "normal", paddingLeft: "18px" }}>
+                        {result.validationErrors.map((e, i) => (
+                          <li key={i}>{e}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
+                  <div style={{ fontSize: "12px", color: t.textMuted, lineHeight: "1.8" }}>
+                    <div>
+                      <strong style={{ color: t.text }}>Delimiter:</strong>{" "}
+                      <code>{result.delimiterDetected === "^" ? "SOH (\\x01)" : result.delimiterDetected}</code>
+                    </div>
+                    <div>
+                      <strong style={{ color: t.text }}>CheckSum:</strong> {result.checksum.calculated} (calc) / {result.checksum.actual} (actual)
+                    </div>
+                    <div>
+                      <strong style={{ color: t.text }}>BodyLength:</strong> {result.bodyLength.calculated} (calc) / {result.bodyLength.actual} (actual)
+                    </div>
+                    <div>
+                      <strong style={{ color: t.text }}>Total Fields:</strong> {result.totalFields}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div style={{ flex: "1 1 520px", minWidth: "320px" }}>
+              {!result && (
                 <div
                   style={{
-                    padding: "12px 16px",
-                    borderRadius: "4px",
-                    marginBottom: "16px",
-                    background: result.isValid ? t.valid.bg : t.invalid.bg,
-                    border: `2px solid ${result.isValid ? t.valid.border : t.invalid.border}`,
-                    color: result.isValid ? t.valid.fg : t.invalid.fg,
-                    fontWeight: "bold",
+                    border: `1px dashed ${t.border}`,
+                    borderRadius: "10px",
+                    padding: "60px 24px",
+                    textAlign: "center",
+                    color: t.textFaint,
                   }}
                 >
-                  {result.isValid ? "✓ Valid FIX Message" : "✗ Validation Errors Found"}
-                  {" · "}
-                  <span style={{ fontWeight: "normal" }}>{result.msgTypeName}</span>
-                  {!result.isValid && (
-                    <ul style={{ marginTop: "8px", fontWeight: "normal" }}>
-                      {result.validationErrors.map((e, i) => (
-                        <li key={i}>{e}</li>
-                      ))}
-                    </ul>
+                  Parsed results will appear here once you parse a message.
+                </div>
+              )}
+
+              {result && (
+                <div>
+                  <div style={{ marginBottom: "16px" }}>
+                    <button onClick={() => setViewMode("table")} style={tabStyle(viewMode === "table", t)}>
+                      Table View
+                    </button>
+                    <button onClick={() => setViewMode("walkthrough")} style={tabStyle(viewMode === "walkthrough", t)}>
+                      Step-by-Step Walkthrough
+                    </button>
+                  </div>
+
+                  {viewMode === "table" ? (
+                    <>
+                      <FieldTable rows={result.components.header} sectionKey="header" t={t} />
+                      <FieldTable rows={result.components.body} sectionKey="body" t={t} />
+                      <FieldTable rows={result.components.trailer} sectionKey="trailer" t={t} />
+                    </>
+                  ) : (
+                    <WalkthroughView result={result} originalInput={parsedInput} t={t} />
                   )}
                 </div>
-
-                <div style={{ display: "flex", gap: "16px", marginBottom: "16px", fontSize: "13px", color: t.textMuted, flexWrap: "wrap" }}>
-                  <div>
-                    <strong style={{ color: t.text }}>Delimiter:</strong>{" "}
-                    <code>{result.delimiterDetected === "^" ? "SOH (\\x01)" : result.delimiterDetected}</code>
-                  </div>
-                  <div>
-                    <strong style={{ color: t.text }}>CheckSum:</strong> calculated {result.checksum.calculated}, actual {result.checksum.actual}
-                  </div>
-                  <div>
-                    <strong style={{ color: t.text }}>BodyLength:</strong> calculated {result.bodyLength.calculated}, actual {result.bodyLength.actual}
-                  </div>
-                  <div>
-                    <strong style={{ color: t.text }}>Total Fields:</strong> {result.totalFields}
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: "16px" }}>
-                  <button onClick={() => setViewMode("table")} style={tabStyle(viewMode === "table", t)}>
-                    Table View
-                  </button>
-                  <button onClick={() => setViewMode("walkthrough")} style={tabStyle(viewMode === "walkthrough", t)}>
-                    Step-by-Step Walkthrough
-                  </button>
-                </div>
-
-                {viewMode === "table" ? (
-                  <>
-                    <FieldTable rows={result.components.header} sectionKey="header" t={t} />
-                    <FieldTable rows={result.components.body} sectionKey="body" t={t} />
-                    <FieldTable rows={result.components.trailer} sectionKey="trailer" t={t} />
-                  </>
-                ) : (
-                  <WalkthroughView result={result} originalInput={parsedInput} t={t} />
-                )}
-              </div>
-            )}
-          </>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </div>
