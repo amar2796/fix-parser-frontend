@@ -433,136 +433,199 @@ function WalkthroughView({ result, originalInput, t }) {
   );
 }
 
+const POPULAR_TAGS = [
+  { tag: 8, name: "BeginString" },
+  { tag: 9, name: "BodyLength" },
+  { tag: 35, name: "MsgType" },
+  { tag: 49, name: "SenderCompID" },
+  { tag: 56, name: "TargetCompID" },
+  { tag: 11, name: "ClOrdID" },
+  { tag: 55, name: "Symbol" },
+  { tag: 54, name: "Side" },
+  { tag: 38, name: "OrderQty" },
+  { tag: 40, name: "OrdType" },
+  { tag: 44, name: "Price" },
+  { tag: 59, name: "TimeInForce" },
+  { tag: 37, name: "OrderID" },
+  { tag: 39, name: "OrdStatus" },
+  { tag: 150, name: "ExecType" },
+  { tag: 10, name: "CheckSum" },
+];
+
 function TagSearchView({ t }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [searched, setSearched] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleSearch = async () => {
+  const runSearch = async (tagNum) => {
+    setLoading(true);
+    setSearched(true);
+    try {
+      const synthetic = `8=FIX.4.4|9=10|35=0|${tagNum}=X|10=000|`;
+      const res = await fetch(BACKEND_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: synthetic,
+      });
+      const data = await res.json();
+      const field = data.sequence ? data.sequence.find((f) => String(f.tag) === String(tagNum)) : null;
+      setResults(field ? [field] : []);
+    } catch (e) {
+      setResults([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearch = () => {
     const trimmed = query.trim();
     if (!trimmed) return;
-    setSearched(true);
-
-    const tagNum = /^\d+$/.test(trimmed) ? trimmed : null;
-
-    if (tagNum) {
-      try {
-        const synthetic = `8=FIX.4.4|9=10|35=0|${tagNum}=X|10=000|`;
-        const res = await fetch(BACKEND_URL, {
-          method: "POST",
-          headers: { "Content-Type": "text/plain" },
-          body: synthetic,
-        });
-        const data = await res.json();
-        const field = data.sequence ? data.sequence.find((f) => String(f.tag) === tagNum) : null;
-        if (field) {
-          setResults([field]);
-        } else {
-          setResults([]);
-        }
-      } catch (e) {
-        setResults([]);
-      }
+    if (/^\d+$/.test(trimmed)) {
+      runSearch(trimmed);
     } else {
+      setSearched(true);
       setResults([]);
     }
   };
 
+  const handlePopularClick = (tagNum) => {
+    setQuery(String(tagNum));
+    runSearch(tagNum);
+  };
+
   return (
-    <div>
-      <p style={{ color: t.textMuted, marginTop: 0 }}>
-        Look up any FIX tag by number to see its name, common values, and a link to the official reference —
-        no message needed.
-      </p>
-      <div style={{ display: "flex", gap: "8px" }}>
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-          placeholder="Enter a tag number, e.g. 54"
-          style={{
-            flex: 1,
-            padding: "10px 14px",
-            fontSize: "15px",
-            borderRadius: "4px",
-            border: `1px solid ${t.border}`,
-            background: t.inputBg,
-            color: t.text,
-          }}
-        />
-        <button onClick={handleSearch} style={primaryBtnStyle(t)}>
-          Search
-        </button>
-      </div>
-
-      {searched && results.length === 0 && (
-        <div style={{ marginTop: "16px", color: t.textMuted, fontSize: "14px" }}>
-          {/^\d+$/.test(query.trim()) ? (
-            <>
-              Tag {query.trim()} not found or backend unreachable. You can still check the{" "}
-              <a
-                href={`https://www.onixs.biz/fix-dictionary/4.4/tagNum_${query.trim()}.html`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: t.accent }}
-              >
-                official FIX dictionary ↗
-              </a>
-              .
-            </>
-          ) : (
-            "Please enter a numeric tag number (e.g. 54 for Side)."
-          )}
-        </div>
-      )}
-
-      {results.map((field, i) => (
-        <div
-          key={i}
-          style={{
-            marginTop: "20px",
-            border: `1px solid ${t.border}`,
-            borderRadius: "8px",
-            padding: "20px",
-            background: t.panelBgAlt,
-          }}
-        >
-          <div style={{ display: "flex", gap: "24px", flexWrap: "wrap" }}>
-            <div>
-              <div style={{ fontSize: "12px", color: t.textMuted }}>Tag Number</div>
-              <div style={{ fontSize: "28px", fontWeight: "bold", fontFamily: "monospace", color: t.text }}>{field.tag}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: "12px", color: t.textMuted }}>Field Name</div>
-              <div style={{ fontSize: "22px", fontWeight: "bold", color: t.text }}>{field.name}</div>
-            </div>
-          </div>
-          <div
+    <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
+      <div
+        style={{
+          background: t.panelBg,
+          border: `1px solid ${t.border}`,
+          borderRadius: "12px",
+          padding: "32px",
+          boxShadow: t === THEMES.dark ? "0 1px 3px rgba(0,0,0,0.3)" : "0 1px 3px rgba(0,0,0,0.06)",
+        }}
+      >
+        <h2 style={{ margin: "0 0 6px 0", fontSize: "20px", color: t.text }}>Look up any FIX tag</h2>
+        <p style={{ color: t.textMuted, marginTop: 0, marginBottom: "20px", fontSize: "14px" }}>
+          Search by tag number to see its name, common values, a plain-English explanation, and a link to the
+          official reference — no message needed.
+        </p>
+        <div style={{ display: "flex", gap: "10px", maxWidth: "560px" }}>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+            placeholder="Enter a tag number, e.g. 54"
             style={{
-              marginTop: "16px",
-              padding: "12px 14px",
-              background: t.panelBg,
-              borderRadius: "6px",
-              borderLeft: `4px solid ${t.accent}`,
+              flex: 1,
+              padding: "12px 16px",
+              fontSize: "15px",
+              borderRadius: "8px",
+              border: `1px solid ${t.border}`,
+              background: t.inputBg,
+              color: t.text,
+            }}
+          />
+          <button onClick={handleSearch} style={{ ...primaryBtnStyle(t, loading), marginTop: 0 }}>
+            {loading ? "Searching..." : "Search"}
+          </button>
+        </div>
+
+        {searched && !loading && results.length === 0 && (
+          <div style={{ marginTop: "16px", color: t.textMuted, fontSize: "14px" }}>
+            {/^\d+$/.test(query.trim()) ? (
+              <>
+                Tag {query.trim()} not found or backend unreachable. You can still check the{" "}
+                <a
+                  href={`https://www.onixs.biz/fix-dictionary/4.4/tagNum_${query.trim()}.html`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: t.accent }}
+                >
+                  official FIX dictionary ↗
+                </a>
+                .
+              </>
+            ) : (
+              "Please enter a numeric tag number (e.g. 54 for Side)."
+            )}
+          </div>
+        )}
+
+        {results.map((field, i) => (
+          <div
+            key={i}
+            style={{
+              marginTop: "24px",
+              border: `1px solid ${t.border}`,
+              borderRadius: "10px",
+              padding: "24px",
+              background: t.panelBgAlt,
             }}
           >
-            <div style={{ fontSize: "11px", fontWeight: "bold", color: t.accent, textTransform: "uppercase", marginBottom: "4px" }}>
-              Why this matters
+            <div style={{ display: "flex", gap: "32px", flexWrap: "wrap" }}>
+              <div>
+                <div style={{ fontSize: "12px", color: t.textMuted }}>Tag Number</div>
+                <div style={{ fontSize: "30px", fontWeight: "bold", fontFamily: "monospace", color: t.text }}>{field.tag}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: "12px", color: t.textMuted }}>Field Name</div>
+                <div style={{ fontSize: "24px", fontWeight: "bold", color: t.text }}>{field.name}</div>
+              </div>
             </div>
-            <div style={{ fontSize: "14px", color: t.text, lineHeight: "1.5" }}>{field.why}</div>
-          </div>
-          {field.isUnknownTag && (
-            <div style={{ marginTop: "10px", fontSize: "13px", color: t.invalid.fg }}>
-              This tag isn't in our built-in dictionary yet.
+            <div
+              style={{
+                marginTop: "18px",
+                padding: "14px 16px",
+                background: t.panelBg,
+                borderRadius: "8px",
+                borderLeft: `4px solid ${t.accent}`,
+              }}
+            >
+              <div style={{ fontSize: "11px", fontWeight: "bold", color: t.accent, textTransform: "uppercase", marginBottom: "4px" }}>
+                Why this matters
+              </div>
+              <div style={{ fontSize: "14px", color: t.text, lineHeight: "1.5" }}>{field.why}</div>
             </div>
-          )}
-          <div style={{ marginTop: "12px" }}>
-            <a href={field.referenceUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "13px", color: t.accent }}>
-              View full official definition ↗
-            </a>
+            {field.isUnknownTag && (
+              <div style={{ marginTop: "12px", fontSize: "13px", color: t.invalid.fg }}>
+                This tag isn't in our built-in dictionary yet.
+              </div>
+            )}
+            <div style={{ marginTop: "14px" }}>
+              <a href={field.referenceUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "13px", color: t.accent, fontWeight: "bold" }}>
+                View full official definition ↗
+              </a>
+            </div>
           </div>
+        ))}
+      </div>
+
+      <div>
+        <h3 style={{ fontSize: "14px", color: t.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "14px" }}>
+          Commonly Looked Up Tags
+        </h3>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "12px" }}>
+          {POPULAR_TAGS.map((pt) => (
+            <button
+              key={pt.tag}
+              onClick={() => handlePopularClick(pt.tag)}
+              style={{
+                textAlign: "left",
+                padding: "14px 16px",
+                borderRadius: "8px",
+                border: `1px solid ${t.border}`,
+                background: t.panelBg,
+                cursor: "pointer",
+                transition: "border-color 0.15s ease",
+              }}
+            >
+              <div style={{ fontSize: "11px", color: t.textFaint, fontFamily: "monospace" }}>TAG {pt.tag}</div>
+              <div style={{ fontSize: "14px", color: t.text, fontWeight: "bold", marginTop: "2px" }}>{pt.name}</div>
+            </button>
+          ))}
         </div>
-      ))}
+      </div>
     </div>
   );
 }
@@ -679,68 +742,94 @@ function SessionView({ t }) {
 
   return (
     <div>
-      <p style={{ color: t.textMuted, marginTop: 0 }}>
-        Paste a whole log, or upload a <code>.txt</code>/<code>.log</code> file — multiple FIX messages back to
-        back. Stray text, timestamps, or blank lines mixed in are automatically ignored.
-      </p>
+      <div
+        style={{
+          background: t.panelBg,
+          border: `1px solid ${t.border}`,
+          borderRadius: "12px",
+          padding: "24px",
+          marginBottom: "24px",
+          boxShadow: t === THEMES.dark ? "0 1px 3px rgba(0,0,0,0.3)" : "0 1px 3px rgba(0,0,0,0.06)",
+        }}
+      >
+        <p style={{ color: t.textMuted, marginTop: 0 }}>
+          Paste a whole log, or upload a <code>.txt</code>/<code>.log</code> file — multiple FIX messages back to
+          back. Stray text, timestamps, or blank lines mixed in are automatically ignored.
+        </p>
 
-      <div style={{ display: "flex", gap: "8px", marginBottom: "8px", flexWrap: "wrap", alignItems: "center" }}>
-        <button onClick={loadSample} style={navBtnStyle(false, t)}>
-          Load Sample Data
-        </button>
-        <button onClick={() => fileInputRef.current && fileInputRef.current.click()} style={navBtnStyle(false, t)}>
-          📁 Upload File
-        </button>
-        <input ref={fileInputRef} type="file" accept=".txt,.log" onChange={handleFileSelect} style={{ display: "none" }} />
-        <button
-          onClick={() => {
-            setLogInput("");
-            setMessages(null);
-            setSelectedIdx(null);
-            setError(null);
-            setFileName(null);
+        <div style={{ display: "flex", gap: "8px", marginBottom: "12px", flexWrap: "wrap", alignItems: "center" }}>
+          <button onClick={loadSample} style={navBtnStyle(false, t)}>
+            Load Sample Data
+          </button>
+          <button onClick={() => fileInputRef.current && fileInputRef.current.click()} style={navBtnStyle(false, t)}>
+            📁 Upload File
+          </button>
+          <input ref={fileInputRef} type="file" accept=".txt,.log" onChange={handleFileSelect} style={{ display: "none" }} />
+          <button
+            onClick={() => {
+              setLogInput("");
+              setMessages(null);
+              setSelectedIdx(null);
+              setError(null);
+              setFileName(null);
+            }}
+            style={navBtnStyle(false, t)}
+          >
+            Clear
+          </button>
+          {fileName && (
+            <span style={{ fontSize: "12px", color: t.textMuted }}>
+              Loaded: <strong>{fileName}</strong>
+            </span>
+          )}
+        </div>
+
+        <textarea
+          value={logInput}
+          onChange={(e) => {
+            setLogInput(e.target.value);
+            if (fileName) setFileName(null);
           }}
-          style={navBtnStyle(false, t)}
-        >
-          Clear
+          rows={6}
+          placeholder="Paste a multi-message FIX log here, click Load Sample Data, or upload a .txt/.log file..."
+          style={{
+            width: "100%",
+            fontFamily: "monospace",
+            fontSize: "12px",
+            padding: "10px",
+            boxSizing: "border-box",
+            border: `1px solid ${t.border}`,
+            borderRadius: "6px",
+            background: t.inputBg,
+            color: t.text,
+            resize: "vertical",
+          }}
+        />
+
+        <button onClick={handleProcess} disabled={loading || !logInput.trim()} style={primaryBtnStyle(t, loading)}>
+          {loading ? "Processing..." : "Process Log"}
         </button>
-        {fileName && (
-          <span style={{ fontSize: "12px", color: t.textMuted }}>
-            Loaded: <strong>{fileName}</strong>
-          </span>
+
+        {loading && <p style={{ color: t.textMuted, marginTop: "10px", fontSize: "13px" }}>Contacting backend — may take up to 50 seconds if it's waking up from sleep...</p>}
+
+        {error && (
+          <div style={{ marginTop: "16px", padding: "12px", background: t.invalid.bg, border: `1px solid ${t.invalid.border}`, borderRadius: "6px", color: t.invalid.fg, fontSize: "13px" }}>
+            {error}
+          </div>
         )}
       </div>
 
-      <textarea
-        value={logInput}
-        onChange={(e) => {
-          setLogInput(e.target.value);
-          if (fileName) setFileName(null);
-        }}
-        rows={6}
-        placeholder="Paste a multi-message FIX log here, click Load Sample Data, or upload a .txt/.log file..."
-        style={{
-          width: "100%",
-          fontFamily: "monospace",
-          fontSize: "12px",
-          padding: "10px",
-          boxSizing: "border-box",
-          border: `1px solid ${t.border}`,
-          borderRadius: "4px",
-          background: t.inputBg,
-          color: t.text,
-        }}
-      />
-
-      <button onClick={handleProcess} disabled={loading || !logInput.trim()} style={primaryBtnStyle(t, loading)}>
-        {loading ? "Processing..." : "Process Log"}
-      </button>
-
-      {loading && <p style={{ color: t.textMuted, marginTop: "10px" }}>Contacting backend — may take up to 50 seconds if it's waking up from sleep...</p>}
-
-      {error && (
-        <div style={{ marginTop: "16px", padding: "12px", background: t.invalid.bg, border: `1px solid ${t.invalid.border}`, borderRadius: "4px", color: t.invalid.fg }}>
-          {error}
+      {!messages && (
+        <div
+          style={{
+            border: `1px dashed ${t.border}`,
+            borderRadius: "10px",
+            padding: "60px 24px",
+            textAlign: "center",
+            color: t.textFaint,
+          }}
+        >
+          Timeline and message details will appear here once you process a log.
         </div>
       )}
 
@@ -921,7 +1010,7 @@ function App() {
         </button>
       </div>
 
-      <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "32px", width: "100%", boxSizing: "border-box" }}>
+      <div style={{ margin: "0 auto", padding: "32px 40px", width: "100%", boxSizing: "border-box" }}>
         <div style={{ marginBottom: "24px", borderBottom: `1px solid ${t.border}` }}>
           <button onClick={() => setAppMode("single")} style={modeTabStyle(appMode === "single", t)}>
             Single Message
