@@ -100,6 +100,16 @@ function buildRelatedIdMap(messages) {
   const map = {}; Object.keys(parent).forEach(id => { map[id] = find(id); }); return map;
 }
 
+// Generates text format copy sequences
+function exportFieldsToMarkdown(result) {
+  let md = `### FIX Message Analysis (${result.msgTypeName})\n\n| Tag | Field Name | Raw Value | Meaning |\n|---|---|---|---|\n`;
+  const allFields = [...result.components.header, ...result.components.body, ...result.components.trailer];
+  allFields.forEach(f => {
+    md += `| **${f.tag}** | ${f.name} | \`${f.raw}\` | ${f.meaning} |\n`;
+  });
+  return md;
+}
+
 const POPULAR_TAGS = [
   [8,"BeginString"],[9,"BodyLength"],[35,"MsgType"],[49,"SenderCompID"],[56,"TargetCompID"],
   [11,"ClOrdID"],[55,"Symbol"],[54,"Side"],[38,"OrderQty"],[40,"OrdType"],[44,"Price"],
@@ -212,9 +222,18 @@ function ThemedAnatomyBar({ result, originalInput, stepIdx = null, onClickField 
 }
 
 // ─── Field Table ──────────────────────────────────────────────────────────────
-function FieldTable({ rows, sectionKey, t, onTagClick }) {
+function FieldTable({ rows, sectionKey, t, onTagClick, filterText }) {
   const sc = t.sections[sectionKey];
   if (!rows || rows.length === 0) return null;
+
+  const filteredRows = rows.filter(r => {
+    if (!filterText) return true;
+    const txt = filterText.toLowerCase();
+    return String(r.tag).includes(txt) || r.name.toLowerCase().includes(txt) || r.meaning.toLowerCase().includes(txt) || r.raw.toLowerCase().includes(txt);
+  });
+
+  if (filteredRows.length === 0) return null;
+
   return (
     <div style={{ marginBottom: "14px" }}>
       <div style={{
@@ -222,7 +241,7 @@ function FieldTable({ rows, sectionKey, t, onTagClick }) {
         padding: "5px 12px", borderRadius: "6px 6px 0 0", background: sc.border,
       }}>
         <span style={{ fontSize: "11px", fontWeight: 700, color: "#fff", letterSpacing: "0.8px" }}>{sc.label}</span>
-        <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.6)" }}>{rows.length} field{rows.length !== 1 ? "s" : ""}</span>
+        <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.6)" }}>{filteredRows.length} of {rows.length} field{rows.length !== 1 ? "s" : ""}</span>
       </div>
       <div style={{ border: `1px solid ${t.border}`, borderTop: "none", borderRadius: "0 0 6px 6px", background: sc.bg, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -234,8 +253,8 @@ function FieldTable({ rows, sectionKey, t, onTagClick }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r, i) => (
-              <tr key={i} style={{ borderBottom: i < rows.length - 1 ? `1px solid ${t.borderSub}` : "none" }}>
+            {filteredRows.map((r, i) => (
+              <tr key={i} style={{ borderBottom: i < filteredRows.length - 1 ? `1px solid ${t.borderSub}` : "none" }}>
                 <td style={{ padding: "7px 12px", fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace", fontSize: "12px", fontWeight: 600, color: sc.text, whiteSpace: "nowrap" }}>{r.tag}</td>
                 <td style={{ padding: "7px 12px", fontSize: "13px", color: t.text, whiteSpace: "nowrap" }}>
                   {r.name}
@@ -480,6 +499,17 @@ function HeaderTagSearch({ t, onResult }) {
 // ─── Single Message Result ────────────────────────────────────────────────────
 function SingleResult({ result, originalInput, t, onTagClick }) {
   const [subView, setSubView] = useState("table");
+  const [tableFilter, setTableFilter] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    const mdContent = exportFieldsToMarkdown(result);
+    navigator.clipboard.writeText(mdContent).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
   return (
     <div style={{ marginTop: "20px" }}>
       <ThemedAnatomyBar result={result} originalInput={originalInput} t={t} />
@@ -500,22 +530,43 @@ function SingleResult({ result, originalInput, t, onTagClick }) {
 
       <ValidationBanner result={result} t={t} />
 
-      <div style={{ display: "flex", gap: "6px", marginBottom: "14px" }}>
-        {["table", "walkthrough"].map(v => (
-          <button key={v} onClick={() => setSubView(v)} style={{
-            padding: "6px 14px", borderRadius: "6px", fontSize: "12px", fontWeight: 500,
-            border: `1px solid ${subView === v ? t.accent : t.border}`,
-            background: subView === v ? t.accentBg : t.panel,
-            color: subView === v ? t.accent : t.textMuted, cursor: "pointer",
-          }}>{v === "table" ? "Table" : "Walkthrough"}</button>
-        ))}
+      {/* Advanced Filter and Control Strip */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", marginBottom: "14px", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: "6px" }}>
+          {["table", "walkthrough"].map(v => (
+            <button key={v} onClick={() => setSubView(v)} style={{
+              padding: "6px 14px", borderRadius: "6px", fontSize: "12px", fontWeight: 500,
+              border: `1px solid ${subView === v ? t.accent : t.border}`,
+              background: subView === v ? t.accentBg : t.panel,
+              color: subView === v ? t.accent : t.textMuted, cursor: "pointer",
+            }}>{v === "table" ? "Table" : "Walkthrough"}</button>
+          ))}
+        </div>
+
+        {subView === "table" && (
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: "1", maxWidth: "400px" }}>
+            <input 
+              type="text"
+              value={tableFilter}
+              onChange={e => setTableFilter(e.target.value)}
+              placeholder="🔍 Filter tags, names, or values..."
+              style={{
+                width: "100%", height: "32px", padding: "0 10px", borderRadius: "6px", fontSize: "12px",
+                border: `1px solid ${t.border}`, background: t.inputBg, color: t.text, outline: "none"
+              }}
+            />
+            <Btn t={t} onClick={handleCopy} style={{ whiteSpace: "nowrap", borderColor: copied ? t.green : t.border, color: copied ? t.green : t.text }}>
+              {copied ? "✓ Copied MD" : "📋 Copy Table"}
+            </Btn>
+          </div>
+        )}
       </div>
 
       {subView === "table" ? (
         <>
-          <FieldTable rows={result.components.header}  sectionKey="header"  t={t} onTagClick={onTagClick} />
-          <FieldTable rows={result.components.body}    sectionKey="body"    t={t} onTagClick={onTagClick} />
-          <FieldTable rows={result.components.trailer} sectionKey="trailer" t={t} onTagClick={onTagClick} />
+          <FieldTable rows={result.components.header}  sectionKey="header"  t={t} onTagClick={onTagClick} filterText={tableFilter} />
+          <FieldTable rows={result.components.body}    sectionKey="body"    t={t} onTagClick={onTagClick} filterText={tableFilter} />
+          <FieldTable rows={result.components.trailer} sectionKey="trailer" t={t} onTagClick={onTagClick} filterText={tableFilter} />
         </>
       ) : (
         <Walkthrough result={result} originalInput={originalInput} t={t} />
@@ -528,9 +579,21 @@ function SingleResult({ result, originalInput, t, onTagClick }) {
 function SessionResult({ messages, t, onTagClick }) {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [detailMode, setDetailMode] = useState("table");
+  const [tableFilter, setTableFilter] = useState("");
+  const [copied, setCopied] = useState(false);
+
   const idMap = buildRelatedIdMap(messages);
   const sel = messages[selectedIdx] || null;
   const selGroupKey = sel && sel.clOrdID ? idMap[sel.clOrdID] : null;
+
+  const handleCopy = () => {
+    if (!sel) return;
+    const mdContent = exportFieldsToMarkdown(sel);
+    navigator.clipboard.writeText(mdContent).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
 
   return (
     <div style={{ marginTop: "20px", display: "flex", gap: "16px", alignItems: "flex-start" }}>
@@ -544,7 +607,7 @@ function SessionResult({ messages, t, onTagClick }) {
               const isSel = i === selectedIdx;
               const isRel = selGroupKey && m.clOrdID && idMap[m.clOrdID] === selGroupKey && !isSel;
               return (
-                <div key={i} onClick={() => { setSelectedIdx(i); setDetailMode("table"); }}
+                <div key={i} onClick={() => { setSelectedIdx(i); setDetailMode("table"); setTableFilter(""); }}
                   style={{
                     padding: "10px 14px", cursor: "pointer",
                     borderBottom: `1px solid ${t.borderSub}`,
@@ -580,21 +643,43 @@ function SessionResult({ messages, t, onTagClick }) {
           <div>
             <ValidationBanner result={sel} t={t} />
             {sel.rawMessage && <div style={{ marginBottom: "12px" }}><ThemedAnatomyBar result={sel} originalInput={sel.rawMessage} t={t} /></div>}
-            <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
-              {["table", "walkthrough"].map(v => (
-                <button key={v} onClick={() => setDetailMode(v)} style={{
-                  padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 500,
-                  border: `1px solid ${detailMode === v ? t.accent : t.border}`,
-                  background: detailMode === v ? t.accentBg : t.panel,
-                  color: detailMode === v ? t.accent : t.textMuted, cursor: "pointer",
-                }}>{v === "table" ? "Table" : "Walkthrough"}</button>
-              ))}
+            
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", marginBottom: "12px", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: "6px" }}>
+                {["table", "walkthrough"].map(v => (
+                  <button key={v} onClick={() => setDetailMode(v)} style={{
+                    padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 500,
+                    border: `1px solid ${detailMode === v ? t.accent : t.border}`,
+                    background: detailMode === v ? t.accentBg : t.panel,
+                    color: detailMode === v ? t.accent : t.textMuted, cursor: "pointer",
+                  }}>{v === "table" ? "Table" : "Walkthrough"}</button>
+                ))}
+              </div>
+
+              {detailMode === "table" && (
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: "1", maxWidth: "400px" }}>
+                  <input 
+                    type="text"
+                    value={tableFilter}
+                    onChange={e => setTableFilter(e.target.value)}
+                    placeholder="🔍 Filter tags, names, or values..."
+                    style={{
+                      width: "100%", height: "32px", padding: "0 10px", borderRadius: "6px", fontSize: "12px",
+                      border: `1px solid ${t.border}`, background: t.inputBg, color: t.text, outline: "none"
+                    }}
+                  />
+                  <Btn t={t} onClick={handleCopy} style={{ whiteSpace: "nowrap", borderColor: copied ? t.green : t.border, color: copied ? t.green : t.text }}>
+                    {copied ? "✓ Copied MD" : "📋 Copy Table"}
+                  </Btn>
+                </div>
+              )}
             </div>
+
             {detailMode === "table" ? (
               <>
-                <FieldTable rows={sel.components.header}  sectionKey="header"  t={t} onTagClick={onTagClick} />
-                <FieldTable rows={sel.components.body}    sectionKey="body"    t={t} onTagClick={onTagClick} />
-                <FieldTable rows={sel.components.trailer} sectionKey="trailer" t={t} onTagClick={onTagClick} />
+                <FieldTable rows={sel.components.header}  sectionKey="header"  t={t} onTagClick={onTagClick} filterText={tableFilter} />
+                <FieldTable rows={sel.components.body}    sectionKey="body"    t={t} onTagClick={onTagClick} filterText={tableFilter} />
+                <FieldTable rows={sel.components.trailer} sectionKey="trailer" t={t} onTagClick={onTagClick} filterText={tableFilter} />
               </>
             ) : sel.rawMessage ? (
               <Walkthrough result={sel} originalInput={sel.rawMessage} t={t} />
@@ -785,9 +870,6 @@ export default function App() {
 
   return (
     <>
-      {/* CRITICAL FIX: Overriding constraints globally from index.css and App.css 
-        to maximize screen workspace width completely and bypass boilerplate flex-centering 
-      */}
       <style>{`
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         html, body, #root { height: 100%; width: 100%; }
