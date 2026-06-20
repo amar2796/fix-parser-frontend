@@ -100,16 +100,6 @@ function buildRelatedIdMap(messages) {
   const map = {}; Object.keys(parent).forEach(id => { map[id] = find(id); }); return map;
 }
 
-// Generates text format copy sequences
-function exportFieldsToMarkdown(result) {
-  let md = `### FIX Message Analysis (${result.msgTypeName})\n\n| Tag | Field Name | Raw Value | Meaning |\n|---|---|---|---|\n`;
-  const allFields = [...result.components.header, ...result.components.body, ...result.components.trailer];
-  allFields.forEach(f => {
-    md += `| **${f.tag}** | ${f.name} | \`${f.raw}\` | ${f.meaning} |\n`;
-  });
-  return md;
-}
-
 const POPULAR_TAGS = [
   [8,"BeginString"],[9,"BodyLength"],[35,"MsgType"],[49,"SenderCompID"],[56,"TargetCompID"],
   [11,"ClOrdID"],[55,"Symbol"],[54,"Side"],[38,"OrderQty"],[40,"OrdType"],[44,"Price"],
@@ -182,46 +172,65 @@ function ValidationBanner({ result, t }) {
   );
 }
 
-// ─── Anatomy Bar ──────────────────────────────────────────────────────────────
-function ThemedAnatomyBar({ result, originalInput, stepIdx = null, onClickField = null, t }) {
-  let delim = "|";
-  if (originalInput.includes("\x01")) delim = "\x01";
-  else if (originalInput.includes(";")) delim = ";";
-  else if (originalInput.includes("^") && !originalInput.includes("|")) delim = "^";
-  const parts = originalInput.split(delim).filter(p => p.length > 0);
-  const seq = result.sequence || [];
+// ─── Order Execution Summary Visualizer ───────────────────────────────────────
+function ExecutionSummaryVisualizer({ result, t }) {
+  const isExecutionReport = result.msgType === "8";
+  const isNewOrder = result.msgType === "D";
+  const isCancel = result.msgType === "F" || result.msgType === "G" || result.msgType === "9";
+  
+  if (!isExecutionReport && !isNewOrder && !isCancel) return null;
+
+  let currentStep = 0; 
+  let statusText = result.msgTypeName;
+  let color = t.accent;
+
+  const fields = [...result.components.header, ...result.components.body, ...result.components.trailer];
+  const ordStatusField = fields.find(f => f.tag === 39);
+  const statusVal = ordStatusField ? ordStatusField.raw : "";
+
+  if (statusVal === "0" || isNewOrder) { currentStep = 1; statusText = "New Order Active"; color = t.accent; }
+  else if (statusVal === "1") { currentStep = 2; statusText = "Partially Filled"; color = t.yellow; }
+  else if (statusVal === "2") { currentStep = 3; statusText = "Fully Filled!"; color = t.green; }
+  else if (statusVal === "4" || statusVal === "8" || result.msgType === "9") { currentStep = 4; statusText = "Terminated (Canceled/Rejected)"; color = t.red; }
+
+  const steps = [
+    { label: "Placement", step: 0 },
+    { label: "Acknowledged", step: 1 },
+    { label: "Partial Fill", step: 2 },
+    { label: "Fully Executed", step: 3 }
+  ];
+
   return (
-    <div style={{
-      background: t.inputBg, border: `1px solid ${t.border}`, borderRadius: "8px",
-      padding: "10px 12px",
-      fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace",
-      fontSize: "11px", lineHeight: "1.8", wordBreak: "break-all",
-    }}>
-      {parts.map((part, i) => {
-        const field = seq[i];
-        const section = field ? sectionOf(field, result) : "body";
-        const sc = t.sections[section];
-        const isCurrent = stepIdx !== null && i === stepIdx;
-        return (
-          <span key={i} onClick={() => onClickField && onClickField(i)}
-            title={field ? `Tag ${field.tag} · ${field.name} = ${field.raw}` : part}
-            style={{
-              display: "inline-block", padding: "1px 5px", marginRight: "2px",
-              borderRadius: "3px", cursor: onClickField ? "pointer" : "default",
-              transition: "all 0.15s",
-              background: isCurrent ? sc.border : (stepIdx !== null ? "transparent" : sc.bg),
-              color: isCurrent ? "#fff" : (stepIdx !== null && !isCurrent ? t.textFaint : sc.text),
-              fontWeight: isCurrent ? 700 : 400,
-              transform: isCurrent ? "scale(1.06)" : "scale(1)",
-            }}
-          >{part}</span>
-        );
-      })}
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: t.panelAlt, border: `1px solid ${t.border}`, padding: "12px 20px", borderRadius: "8px", marginBottom: "14px" }}>
+      <div style={{ display: "flex", flexDirection: "column" }}>
+        <span style={{ fontSize: "10px", fontWeight: 700, color: t.textMuted, letterSpacing: "0.5px" }}>EXECUTION SUMMARY</span>
+        <span style={{ fontSize: "15px", fontWeight: 700, color: color, marginTop: "2px" }}>{statusText}</span>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
+        {steps.map((s, index) => {
+          const active = currentStep >= s.step && currentStep !== 4;
+          const isTerminated = currentStep === 4;
+          return (
+            <div key={index} style={{ display: "flex", alignItems: "center", gap: "8px", opacity: active || (isTerminated && index === 3) ? 1 : 0.35 }}>
+              <div style={{
+                width: "20px", height: "20px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: 700,
+                background: isTerminated && index === 3 ? t.redBg : active ? t.greenBg : t.border,
+                color: isTerminated && index === 3 ? t.red : active ? t.green : t.textMuted,
+                border: `1px solid ${isTerminated && index === 3 ? t.red : active ? t.green : "transparent"}`
+              }}>
+                {isTerminated && index === 3 ? "✕" : "✓"}
+              </div>
+              <span style={{ fontSize: "12px", fontWeight: 500, color: t.text }}>{isTerminated && index === 3 ? "Terminated" : s.label}</span>
+              {index < steps.length - 1 && <span style={{ color: t.textFaint, marginLeft: "12px" }}>➔</span>}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
-// ─── Field Table ──────────────────────────────────────────────────────────────
+// ─── Field Table (With Smart Repeating Group Segmentation) ─────────────────────
 function FieldTable({ rows, sectionKey, t, onTagClick, filterText }) {
   const sc = t.sections[sectionKey];
   if (!rows || rows.length === 0) return null;
@@ -234,6 +243,47 @@ function FieldTable({ rows, sectionKey, t, onTagClick, filterText }) {
 
   if (filteredRows.length === 0) return null;
 
+  // Segmenting rows by Repeating Group index tracking
+  const baseFields = [];
+  const groupsMap = {}; 
+
+  filteredRows.forEach(r => {
+    if (r.groupIndex !== undefined && r.groupIndex !== -1) {
+      if (!groupsMap[r.groupIndex]) groupsMap[r.groupIndex] = [];
+      groupsMap[r.groupIndex].push(r);
+    } else {
+      baseFields.push(r);
+    }
+  });
+
+  const renderRawTable = (fieldsList, isEmbedded = false) => (
+    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <thead>
+        <tr style={{ borderBottom: `1px solid ${t.border}` }}>
+          {["Tag", "Field Name", "Raw Value", "Meaning", ""].map((h, i) => (
+            <th key={i} style={{ padding: "6px 12px", textAlign: "left", fontSize: "11px", fontWeight: 600, color: t.textMuted, letterSpacing: "0.4px" }}>{h}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {fieldsList.map((r, i) => (
+          <tr key={i} style={{ borderBottom: i < fieldsList.length - 1 ? `1px solid ${t.borderSub}` : "none" }}>
+            <td style={{ padding: "7px 12px", fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace", fontSize: "12px", fontWeight: 600, color: sc.text, whiteSpace: "nowrap" }}>{r.tag}</td>
+            <td style={{ padding: "7px 12px", fontSize: "13px", color: t.text, whiteSpace: "nowrap" }}>
+              {r.name}
+              {r.isUnknownTag && <span style={{ fontSize: "10px", color: t.red, marginLeft: "5px" }}>unknown</span>}
+            </td>
+            <td style={{ padding: "7px 12px", fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace", fontSize: "12px", color: t.textMuted, maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.raw}</td>
+            <td style={{ padding: "7px 12px", fontSize: "13px", color: t.text }}>{r.meaning}</td>
+            <td style={{ padding: "7px 12px" }}>
+              <button onClick={() => onTagClick && onTagClick(r)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "11px", color: t.accent, padding: "2px 6px", borderRadius: "4px" }}>↗</button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+
   return (
     <div style={{ marginBottom: "14px" }}>
       <div style={{
@@ -241,35 +291,21 @@ function FieldTable({ rows, sectionKey, t, onTagClick, filterText }) {
         padding: "5px 12px", borderRadius: "6px 6px 0 0", background: sc.border,
       }}>
         <span style={{ fontSize: "11px", fontWeight: 700, color: "#fff", letterSpacing: "0.8px" }}>{sc.label}</span>
-        <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.6)" }}>{filteredRows.length} of {rows.length} field{rows.length !== 1 ? "s" : ""}</span>
+        <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.6)" }}>{filteredRows.length} field{rows.length !== 1 ? "s" : ""}</span>
       </div>
-      <div style={{ border: `1px solid ${t.border}`, borderTop: "none", borderRadius: "0 0 6px 6px", background: sc.bg, overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ borderBottom: `1px solid ${t.border}` }}>
-              {["Tag", "Field Name", "Raw Value", "Meaning", ""].map((h, i) => (
-                <th key={i} style={{ padding: "6px 12px", textAlign: "left", fontSize: "11px", fontWeight: 600, color: t.textMuted, letterSpacing: "0.4px" }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filteredRows.map((r, i) => (
-              <tr key={i} style={{ borderBottom: i < filteredRows.length - 1 ? `1px solid ${t.borderSub}` : "none" }}>
-                <td style={{ padding: "7px 12px", fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace", fontSize: "12px", fontWeight: 600, color: sc.text, whiteSpace: "nowrap" }}>{r.tag}</td>
-                <td style={{ padding: "7px 12px", fontSize: "13px", color: t.text, whiteSpace: "nowrap" }}>
-                  {r.name}
-                  {r.isGroupStart && <span style={{ fontSize: "10px", color: t.textFaint, marginLeft: "5px" }}>#{r.groupIndex + 1}</span>}
-                  {r.isUnknownTag && <span style={{ fontSize: "10px", color: t.red, marginLeft: "5px" }}>unknown</span>}
-                </td>
-                <td style={{ padding: "7px 12px", fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace", fontSize: "12px", color: t.textMuted, maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.raw}</td>
-                <td style={{ padding: "7px 12px", fontSize: "13px", color: t.text }}>{r.meaning}</td>
-                <td style={{ padding: "7px 12px" }}>
-                  <button onClick={() => onTagClick && onTagClick(r)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "11px", color: t.accent, padding: "2px 6px", borderRadius: "4px" }}>↗</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      
+      <div style={{ border: `1px solid ${t.border}`, borderTop: "none", borderRadius: "0 0 6px 6px", background: t.panel, overflow: "hidden" }}>
+        {baseFields.length > 0 && renderRawTable(baseFields)}
+        
+        {/* Repeating sequences rendering with strong structural visualization blocks */}
+        {Object.keys(groupsMap).map((gIdx) => (
+          <div key={gIdx} style={{ margin: "10px", padding: "10px", background: t.panelAlt, borderLeft: `3px solid ${t.purple}`, borderRadius: "6px", boxShadow: t.shadow }}>
+            <div style={{ fontSize: "10px", fontWeight: 700, color: t.purple, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "8px" }}>
+              📦 Repeating Entry Sequence Block #{parseInt(gIdx) + 1}
+            </div>
+            {renderRawTable(groupsMap[gIdx], true)}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -500,15 +536,6 @@ function HeaderTagSearch({ t, onResult }) {
 function SingleResult({ result, originalInput, t, onTagClick }) {
   const [subView, setSubView] = useState("table");
   const [tableFilter, setTableFilter] = useState("");
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = () => {
-    const mdContent = exportFieldsToMarkdown(result);
-    navigator.clipboard.writeText(mdContent).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  };
 
   return (
     <div style={{ marginTop: "20px" }}>
@@ -529,8 +556,8 @@ function SingleResult({ result, originalInput, t, onTagClick }) {
       </div>
 
       <ValidationBanner result={result} t={t} />
+      <ExecutionSummaryVisualizer result={result} t={t} />
 
-      {/* Advanced Filter and Control Strip */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", marginBottom: "14px", flexWrap: "wrap" }}>
         <div style={{ display: "flex", gap: "6px" }}>
           {["table", "walkthrough"].map(v => (
@@ -555,9 +582,6 @@ function SingleResult({ result, originalInput, t, onTagClick }) {
                 border: `1px solid ${t.border}`, background: t.inputBg, color: t.text, outline: "none"
               }}
             />
-            <Btn t={t} onClick={handleCopy} style={{ whiteSpace: "nowrap", borderColor: copied ? t.green : t.border, color: copied ? t.green : t.text }}>
-              {copied ? "✓ Copied MD" : "📋 Copy Table"}
-            </Btn>
           </div>
         )}
       </div>
@@ -580,20 +604,10 @@ function SessionResult({ messages, t, onTagClick }) {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [detailMode, setDetailMode] = useState("table");
   const [tableFilter, setTableFilter] = useState("");
-  const [copied, setCopied] = useState(false);
 
   const idMap = buildRelatedIdMap(messages);
   const sel = messages[selectedIdx] || null;
   const selGroupKey = sel && sel.clOrdID ? idMap[sel.clOrdID] : null;
-
-  const handleCopy = () => {
-    if (!sel) return;
-    const mdContent = exportFieldsToMarkdown(sel);
-    navigator.clipboard.writeText(mdContent).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  };
 
   return (
     <div style={{ marginTop: "20px", display: "flex", gap: "16px", alignItems: "flex-start" }}>
@@ -642,6 +656,7 @@ function SessionResult({ messages, t, onTagClick }) {
         {sel ? (
           <div>
             <ValidationBanner result={sel} t={t} />
+            <ExecutionSummaryVisualizer result={sel} t={t} />
             {sel.rawMessage && <div style={{ marginBottom: "12px" }}><ThemedAnatomyBar result={sel} originalInput={sel.rawMessage} t={t} /></div>}
             
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", marginBottom: "12px", flexWrap: "wrap" }}>
@@ -668,9 +683,6 @@ function SessionResult({ messages, t, onTagClick }) {
                       border: `1px solid ${t.border}`, background: t.inputBg, color: t.text, outline: "none"
                     }}
                   />
-                  <Btn t={t} onClick={handleCopy} style={{ whiteSpace: "nowrap", borderColor: copied ? t.green : t.border, color: copied ? t.green : t.text }}>
-                    {copied ? "✓ Copied MD" : "📋 Copy Table"}
-                  </Btn>
                 </div>
               )}
             </div>
@@ -758,7 +770,7 @@ function UnifiedInput({ t, onSingleResult, onLogResult, onClearAll }) {
           )}
           <Btn t={t} onClick={() => fileRef.current && fileRef.current.click()}>📁 Upload</Btn>
           <input ref={fileRef} type="file" accept=".txt,.log" onChange={handleFile} style={{ display: "none" }} />
-          <Btn t={t} onClick={() => { setInput("8=FIX.4.4|9=120|35=D|49=SENDER|56=TARGET|34=12|52=20260613-18:15:00|11=ClOrd123|55=AAPL|54=1|38=100|40=2|44=150.00|60=20260613-18:15:00|10=068|"); setFileName(null); setError(null); }}>Sample</Btn>
+          <Btn t={t} onClick={() => { setInput("8=FIX.4.2|9=458|35=W|34=3|49=TT_PRICE|52=20260615-10:25:15.627|56=QALGOMARKET|15=USD|48=14347306835933645772|55=GC|100=XCEC|107=Gold 100 oz|167=FUT|200=202608|205=27|207=CME|262=218888029250001|268=10|269=0|270=43593|271=3|290=1|269=1|270=43598|271=1|290=1|269=Y|270=43591|271=1|290=1|269=Z|270=43603|271=1|290=1|269=B|271=58663|269=x|270=43597|271=1|269=6|270=42388|272=20260612|273=00:00:00|269=4|270=42894|269=7|270=43661|269=8|270=42834|460=2|461=F|541=20260827|18211=M|10=180|"); setFileName(null); setError(null); }}>Sample Group</Btn>
           <Btn t={t} onClick={() => { setInput([
             "8=FIX.4.4|9=61|35=A|49=EXEC|56=BANZAI|34=1|52=20260613-23:24:06|98=0|108=30|10=097|",
             "8=FIX.4.4|9=116|35=D|49=BANZAI|56=EXEC|34=2|52=20260613-23:24:42|11=ORD1001|55=MSFT|54=1|38=10000|40=2|44=12.3|60=20260613-23:24:42|10=199|",
@@ -766,8 +778,6 @@ function UnifiedInput({ t, onSingleResult, onLogResult, onClearAll }) {
             "8=FIX.4.4|9=133|35=8|49=EXEC|56=BANZAI|34=3|52=20260613-23:24:42|37=EXECORD1|11=ORD1001|17=EXEC2|150=2|39=2|55=MSFT|54=1|38=10000|32=10000|31=12.3|14=10000|6=12.3|10=011|",
             "8=FIX.4.4|9=112|35=D|49=BANZAI|56=EXEC|34=4|52=20260613-23:25:12|11=ORD1002|55=SPY|54=1|38=10000|40=2|44=10|60=20260613-23:25:12|10=003|",
             "8=FIX.4.4|9=119|35=8|49=EXEC|56=BANZAI|34=4|52=20260613-23:25:12|37=EXECORD2|11=ORD1002|17=EXEC3|150=0|39=0|55=SPY|54=1|38=10000|14=0|6=0|10=144|",
-            "8=FIX.4.4|9=98|35=F|49=BANZAI|56=EXEC|34=5|52=20260613-23:25:16|11=ORD1003|41=ORD1002|55=SPY|54=1|60=20260613-23:25:16|10=078|",
-            "8=FIX.4.4|9=86|35=3|49=EXEC|56=BANZAI|34=5|52=20260613-23:25:16|45=5|58=Unsupported message type|372=F|373=3|10=066|",
           ].join("\n")); setFileName(null); setError(null); }}>Sample log</Btn>
           {input && <Btn t={t} onClick={() => { setInput(""); setFileName(null); setError(null); onClearAll(); }}>Clear</Btn>}
         </div>
