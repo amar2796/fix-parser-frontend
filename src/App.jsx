@@ -100,7 +100,6 @@ function buildRelatedIdMap(messages) {
   const map = {}; Object.keys(parent).forEach(id => { map[id] = find(id); }); return map;
 }
 
-// Latency calculation helper between timestamp strings
 function calculateTimeDelta(currTimeStr, prevTimeStr) {
   if (!currTimeStr || !prevTimeStr) return null;
   try {
@@ -119,28 +118,65 @@ function calculateTimeDelta(currTimeStr, prevTimeStr) {
   } catch (e) { return null; }
 }
 
-const POPULAR_TAGS = [
-  [8,"BeginString"],[9,"BodyLength"],[35,"MsgType"],[49,"SenderCompID"],[56,"TargetCompID"],
-  [11,"ClOrdID"],[55,"Symbol"],[54,"Side"],[38,"OrderQty"],[40,"OrdType"],[44,"Price"],
-  [59,"TimeInForce"],[37,"OrderID"],[39,"OrdStatus"],[150,"ExecType"],[17,"ExecID"],
-  [60,"TransactTime"],[41,"OrigClOrdID"],[99,"StopPx"],[10,"CheckSum"],
-];
+// ─── Order Execution Summary Visualizer ───────────────────────────────────────
+function ExecutionSummaryVisualizer({ result, t }) {
+  const isExecutionReport = result.msgType === "8";
+  const isNewOrder = result.msgType === "D";
+  const isCancel = result.msgType === "F" || result.msgType === "G" || result.msgType === "9";
+  
+  if (!isExecutionReport && !isNewOrder && !isCancel) return null;
 
-// ─── Primitive components ─────────────────────────────────────────────────────
-function Btn({ children, onClick, disabled, style = {}, t }) {
+  let currentStep = 0; 
+  let statusText = result.msgTypeName;
+  let color = t.accent;
+
+  const fields = [...result.components.header, ...result.components.body, ...result.components.trailer];
+  const ordStatusField = fields.find(f => f.tag === 39);
+  const statusVal = ordStatusField ? ordStatusField.raw : "";
+
+  if (statusVal === "0" || isNewOrder) { currentStep = 1; statusText = "New Order Active"; color = t.accent; }
+  else if (statusVal === "1") { currentStep = 2; statusText = "Partially Filled"; color = t.yellow; }
+  else if (statusVal === "2") { currentStep = 3; statusText = "Fully Filled!"; color = t.green; }
+  else if (statusVal === "4" || statusVal === "8" || result.msgType === "9") { currentStep = 4; statusText = "Terminated (Canceled/Rejected)"; color = t.red; }
+
+  const steps = [
+    { label: "Placement", step: 0 },
+    { label: "Acknowledged", step: 1 },
+    { label: "Partial Fill", step: 2 },
+    { label: "Fully Executed", step: 3 }
+  ];
+
   return (
-    <button onClick={onClick} disabled={disabled} style={{
-      padding: "5px 12px", borderRadius: "6px", cursor: disabled ? "default" : "pointer",
-      fontSize: "12px", fontWeight: 500,
-      border: `1px solid ${t ? t.border : "#30363d"}`,
-      background: disabled ? (t ? t.panelAlt : "transparent") : (t ? t.panel : "#21262d"),
-      color: disabled ? (t ? t.textFaint : "#484f58") : (t ? t.text : "#e6edf3"),
-      transition: "border-color 0.15s", ...style,
-    }}>{children}</button>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: t.panelAlt, border: `1px solid ${t.border}`, padding: "12px 20px", borderRadius: "8px", marginBottom: "14px" }}>
+      <div style={{ display: "flex", flexDirection: "column" }}>
+        <span style={{ fontSize: "10px", fontWeight: 700, color: t.textMuted, letterSpacing: "0.5px" }}>EXECUTION SUMMARY</span>
+        <span style={{ fontSize: "15px", fontWeight: 700, color: color, marginTop: "2px" }}>{statusText}</span>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
+        {steps.map((s, index) => {
+          const active = currentStep >= s.step && currentStep !== 4;
+          const isTerminated = currentStep === 4;
+          return (
+            <div key={index} style={{ display: "flex", alignItems: "center", gap: "8px", opacity: active || (isTerminated && index === 3) ? 1 : 0.35 }}>
+              <div style={{
+                width: "20px", height: "20px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: 700,
+                background: isTerminated && index === 3 ? t.redBg : active ? t.greenBg : t.border,
+                color: isTerminated && index === 3 ? t.red : active ? t.green : t.textMuted,
+                border: `1px solid ${isTerminated && index === 3 ? t.red : active ? t.green : "transparent"}`
+              }}>
+                {isTerminated && index === 3 ? "✕" : "✓"}
+              </div>
+              <span style={{ fontSize: "12px", fontWeight: 500, color: t.text }}>{isTerminated && index === 3 ? "Terminated" : s.label}</span>
+              {index < steps.length - 1 && <span style={{ color: t.textFaint, marginLeft: "12px" }}>➔</span>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
-// ─── Anatomy Bar (With Interactive Hover Tooltip Feature) ────────────────────
+// ─── Anatomy Bar ──────────────────────────────────────────────────────────────
 function ThemedAnatomyBar({ result, originalInput, stepIdx = null, onClickField = null, t }) {
   const [hoveredField, setHoveredField] = useState(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
@@ -204,7 +240,7 @@ function ThemedAnatomyBar({ result, originalInput, stepIdx = null, onClickField 
   );
 }
 
-// ─── Field Table (With Smart Repeating Group Segmentation) ─────────────────────
+// ─── Field Table ──────────────────────────────────────────────────────────────
 function FieldTable({ rows, sectionKey, t, onTagClick, filterText }) {
   const sc = t.sections[sectionKey];
   if (!rows || rows.length === 0) return null;
@@ -283,220 +319,6 @@ function FieldTable({ rows, sectionKey, t, onTagClick, filterText }) {
   );
 }
 
-// ─── Order Execution Summary Visualizer ───────────────────────────────────────
-function ExecutionSummaryVisualizer({ result, t }) {
-  const isExecutionReport = result.msgType === "8";
-  const isNewOrder = result.msgType === "D";
-  const isCancel = result.msgType === "F" || result.msgType === "G" || result.msgType === "9";
-  
-  if (!isExecutionReport && !isNewOrder && !isCancel) return null;
-
-  let currentStep = 0; 
-  let statusText = result.msgTypeName;
-  let color = t.accent;
-
-  const fields = [...result.components.header, ...result.components.body, ...result.components.trailer];
-  const ordStatusField = fields.find(f => f.tag === 39);
-  const statusVal = ordStatusField ? ordStatusField.raw : "";
-
-  if (statusVal === "0" || isNewOrder) { currentStep = 1; statusText = "New Order Active"; color = t.accent; }
-  else if (statusVal === "1") { currentStep = 2; statusText = "Partially Filled"; color = t.yellow; }
-  else if (statusVal === "2") { currentStep = 3; statusText = "Fully Filled!"; color = t.green; }
-  else if (statusVal === "4" || statusVal === "8" || result.msgType === "9") { currentStep = 4; statusText = "Terminated (Canceled/Rejected)"; color = t.red; }
-
-  const steps = [
-    { label: "Placement", step: 0 },
-    { label: "Acknowledged", step: 1 },
-    { label: "Partial Fill", step: 2 },
-    { label: "Fully Executed", step: 3 }
-  ];
-
-  return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: t.panelAlt, border: `1px solid ${t.border}`, padding: "12px 20px", borderRadius: "8px", marginBottom: "14px" }}>
-      <div style={{ display: "flex", flexDirection: "column" }}>
-        <span style={{ fontSize: "10px", fontWeight: 700, color: t.textMuted, letterSpacing: "0.5px" }}>EXECUTION SUMMARY</span>
-        <span style={{ fontSize: "15px", fontWeight: 700, color: color, marginTop: "2px" }}>{statusText}</span>
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
-        {steps.map((s, index) => {
-          const active = currentStep >= s.step && currentStep !== 4;
-          const isTerminated = currentStep === 4;
-          return (
-            <div key={index} style={{ display: "flex", alignItems: "center", gap: "8px", opacity: active || (isTerminated && index === 3) ? 1 : 0.35 }}>
-              <div style={{
-                width: "20px", height: "20px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: 700,
-                background: isTerminated && index === 3 ? t.redBg : active ? t.greenBg : t.border,
-                color: isTerminated && index === 3 ? t.red : active ? t.green : t.textMuted,
-                border: `1px solid ${isTerminated && index === 3 ? t.red : active ? t.green : "transparent"}`
-              }}>
-                {isTerminated && index === 3 ? "✕" : "✓"}
-              </div>
-              <span style={{ fontSize: "12px", fontWeight: 500, color: t.text }}>{isTerminated && index === 3 ? "Terminated" : s.label}</span>
-              {index < steps.length - 1 && <span style={{ color: t.textFaint, marginLeft: "12px" }}>➔</span>}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ─── Walkthrough ──────────────────────────────────────────────────────────────
-const SPEEDS = { slow: 3000, normal: 1800, fast: 800 };
-
-function Walkthrough({ result, originalInput, t }) {
-  const [step, setStep] = useState(0);
-  const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState("normal");
-  const [fade, setFade] = useState(true);
-  const timer = useRef(null);
-  const seq = result.sequence || [];
-  const cur = seq[step];
-  const sec = cur ? sectionOf(cur, result) : "body";
-  const sc = t.sections[sec];
-
-  useEffect(() => {
-    setFade(false);
-    const id = setTimeout(() => setFade(true), 40);
-    return () => clearTimeout(id);
-  }, [step]);
-
-  useEffect(() => {
-    if (playing) {
-      timer.current = setInterval(() => {
-        setStep(s => { if (s >= seq.length - 1) { setPlaying(false); return s; } return s + 1; });
-      }, SPEEDS[speed]);
-    } else clearInterval(timer.current);
-    return () => clearInterval(timer.current);
-  }, [playing, speed, seq.length]);
-
-  if (!cur) return null;
-
-  return (
-    <div>
-      <ThemedAnatomyBar result={result} originalInput={originalInput} stepIdx={step} onClickField={i => { setPlaying(false); setStep(i); }} t={t} />
-
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "12px 0" }}>
-        <span style={{ fontSize: "12px", color: t.textMuted }}>
-          Field <strong style={{ color: t.text }}>{step + 1}</strong> of {seq.length}
-        </span>
-        <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-          <select value={speed} onChange={e => setSpeed(e.target.value)} style={{
-            padding: "4px 8px", borderRadius: "6px", fontSize: "12px",
-            border: `1px solid ${t.border}`, background: t.panel, color: t.text,
-          }}>
-            <option value="slow">Slow</option>
-            <option value="normal">Normal</option>
-            <option value="fast">Fast</option>
-          </select>
-          <Btn onClick={() => { if (step >= seq.length - 1) setStep(0); setPlaying(p => !p); }}
-            style={{ background: playing ? t.red : t.green, color: "#fff", border: "none" }} t={t}>
-            {playing ? "⏸" : "▶"}
-          </Btn>
-          <Btn onClick={() => { setPlaying(false); setStep(s => Math.max(s - 1, 0)); }} disabled={step === 0} t={t}>←</Btn>
-          <Btn onClick={() => { setPlaying(false); setStep(s => Math.min(s + 1, seq.length - 1)); }} disabled={step === seq.length - 1} t={t}>→</Btn>
-        </div>
-      </div>
-
-      <div style={{ height: "3px", background: t.border, borderRadius: "2px", marginBottom: "16px" }}>
-        <div style={{ height: "100%", borderRadius: "2px", background: sc.border, width: `${((step + 1) / seq.length) * 100}%`, transition: "width 0.3s ease" }} />
-      </div>
-
-      <div style={{
-        border: `1px solid ${sc.border}`, borderRadius: "10px", padding: "20px",
-        background: sc.bg, opacity: fade ? 1 : 0,
-        transform: fade ? "translateY(0)" : "translateY(4px)", transition: "opacity 0.2s, transform 0.2s",
-      }}>
-        <div style={{ fontSize: "10px", fontWeight: 700, color: sc.border, textTransform: "uppercase", letterSpacing: "1px", marginBottom: "12px" }}>
-          {sc.label} SECTION{cur.isGroupStart ? ` · ENTRY #${cur.groupIndex + 1}` : ""}
-        </div>
-        <div style={{ display: "flex", gap: "32px", flexWrap: "wrap", marginBottom: "16px" }}>
-          <div>
-            <div style={{ fontSize: "11px", color: t.textMuted, marginBottom: "2px" }}>TAG</div>
-            <div style={{ fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace", fontSize: "32px", fontWeight: 700, color: t.text }}>{cur.tag}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: "11px", color: t.textMuted, marginBottom: "2px" }}>FIELD NAME</div>
-            <div style={{ fontSize: "22px", fontWeight: 700, color: t.text }}>{cur.name}</div>
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: "24px", flexWrap: "wrap", marginBottom: "16px" }}>
-          <div>
-            <div style={{ fontSize: "11px", color: t.textMuted, marginBottom: "4px" }}>RAW VALUE</div>
-            <code style={{ fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace", fontSize: "16px", color: sc.text, background: "transparent" }}>{cur.raw}</code>
-          </div>
-          <div>
-            <div style={{ fontSize: "11px", color: t.textMuted, marginBottom: "4px" }}>MEANING</div>
-            <span style={{ fontSize: "16px", color: t.text, fontWeight: 500 }}>{cur.meaning}</span>
-          </div>
-        </div>
-        <div style={{ borderLeft: `3px solid ${sc.border}`, paddingLeft: "12px", padding: "10px 14px", background: t.panelAlt, borderRadius: "0 8px 8px 0", marginBottom: "10px" }}>
-          <div style={{ fontSize: "10px", fontWeight: 700, color: sc.border, letterSpacing: "0.8px", marginBottom: "4px" }}>WHY THIS MATTERS</div>
-          <div style={{ fontSize: "13px", color: t.textMuted, lineHeight: 1.6 }}>{cur.why}</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Tag Panel ───────────────────────────────────────────────────────────────
-function TagPanel({ field, onClose, t }) {
-  if (!field) return null;
-  return (
-    <div style={{
-      position: "fixed", top: 0, right: 0, bottom: 0, width: "380px",
-      background: t.panel, borderLeft: `1px solid ${t.border}`,
-      boxShadow: t.shadowMd, zIndex: 200, display: "flex", flexDirection: "column",
-    }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", borderBottom: `1px solid ${t.border}` }}>
-        <span style={{ fontSize: "13px", fontWeight: 600, color: t.text }}>Tag Reference</span>
-        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: t.textMuted, fontSize: "20px" }}>×</button>
-      </div>
-      <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
-        <div style={{ display: "flex", gap: "16px", alignItems: "baseline", marginBottom: "20px" }}>
-          <span style={{ fontFamily: "monospace", fontSize: "40px", fontWeight: 700, color: t.accent }}>{field.tag}</span>
-          <span style={{ fontSize: "22px", fontWeight: 700, color: t.text }}>{field.name}</span>
-        </div>
-        {field.why && (
-          <div style={{ borderLeft: `3px solid ${t.accent}`, padding: "10px 14px", background: t.panelAlt, borderRadius: "0 8px 8px 0" }}>
-            <div style={{ fontSize: "10px", fontWeight: 700, color: t.accent }}>WHY THIS MATTERS</div>
-            <div style={{ fontSize: "13px", color: t.textMuted, marginTop: "4px" }}>{field.why}</div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Header Tag Search ────────────────────────────────────────────────────────
-function HeaderTagSearch({ t, onResult }) {
-  const [query, setQuery] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const doSearch = useCallback(async (tagNum) => {
-    if (!/^\d+$/.test(String(tagNum).trim())) return;
-    setLoading(true);
-    try {
-      const syn = `8=FIX.4.4|9=10|35=0|${tagNum}=X|10=000|`;
-      const res = await fetch(API, { method: "POST", headers: { "Content-Type": "text/plain" }, body: syn });
-      const d = await res.json();
-      const f = d.sequence ? d.sequence.find(f => String(f.tag) === String(tagNum)) : null;
-      if (f) onResult(f);
-    } catch { /* silent */ }
-    finally { setLoading(false); }
-  }, [onResult]);
-
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-      <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-        <span style={{ position: "absolute", left: "10px", fontSize: "12px", color: t.textFaint }}>⌗</span>
-        <input value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === "Enter") doSearch(query); }} placeholder="Tag lookup…" style={{ paddingLeft: "28px", height: "32px", borderRadius: "6px", fontSize: "12px", width: "140px", border: `1px solid ${t.border}`, background: t.inputBg, color: t.text, outline: "none" }} />
-      </div>
-      <button onClick={() => doSearch(query)} style={{ height: "32px", padding: "0 12px", borderRadius: "6px", fontSize: "12px", background: t.accentBg, color: t.accent, border: `1px solid ${t.accent}`, cursor: "pointer" }}>Look up</button>
-    </div>
-  );
-}
-
 // ─── Single Message Result ────────────────────────────────────────────────────
 function SingleResult({ result, originalInput, t, onTagClick, filterRef, tableFilter, setTableFilter }) {
   const [subView, setSubView] = useState("table");
@@ -512,7 +334,7 @@ function SingleResult({ result, originalInput, t, onTagClick, filterRef, tableFi
           ["Checksum",  `${result.checksum.actual} (calc ${result.checksum.calculated})`],
           ["Body len",  `${result.bodyLength.actual} (calc ${result.bodyLength.calculated})`],
         ].map(([k, v]) => (
-          <div key={k} style={{ padding: "7px 12px", background: t.panel, border: `1px solid ${t.border}', borderRadius: "7px", flex: "1 1 160px" }}>
+          <div key={k} style={{ padding: "7px 12px", background: t.panel, border: `1px solid ${t.border}`, borderRadius: "7px", flex: "1 1 160px" }}>
             <div style={{ fontSize: "10px", color: t.textMuted }}>{k.toUpperCase()}</div>
             <div style={{ fontSize: "13px", fontWeight: 600, color: t.text, fontFamily: "monospace" }}>{v}</div>
           </div>
@@ -574,7 +396,7 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
                 <div key={i} style={{ display: "flex", flexDirection: "column" }}>
                   {timeDelta && (
                     <div style={{ display: "flex", justifyContent: "center", margin: "4px 0" }}>
-                      <span style={{ fontSize: "10px", padding: "2px 8px", background: t.panel, color: t.purple, borderRadius: "4px", border: `1px dashed ${t.border}', fontWeight: 600 }}>{timeDelta} delay</span>
+                      <span style={{ fontSize: "10px", padding: "2px 8px", background: t.panel, color: t.purple, borderRadius: "4px", border: `1px dashed ${t.border}`, fontWeight: 600 }}>{timeDelta} delay</span>
                     </div>
                   )}
                   <div onClick={() => { setSelectedIdx(i); setDetailMode("table"); setTableFilter(""); }}
@@ -633,8 +455,7 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
 }
 
 // ─── Unified Input ────────────────────────────────────────────────────────────
-function UnifiedInput({ t, onSingleResult, onLogResult, onClearAll }) {
-  const [input, setInput] = useState("");
+function UnifiedInput({ t, onSingleResult, onLogResult, onClearAll, input, setInput }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [fileName, setFileName] = useState(null);
@@ -645,7 +466,19 @@ function UnifiedInput({ t, onSingleResult, onLogResult, onClearAll }) {
   const containsSOH = input.includes("\x01");
 
   const convertSOHToPipes = () => {
-    setInput(prev => prev.replace(/\x01/g, "|"));
+    setInput(input.replace(/\x01/g, "|"));
+  };
+
+  const handleFile = e => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    if (![".txt", ".log"].some(x => f.name.toLowerCase().endsWith(x))) {
+      setError("Upload a .txt or .log file"); e.target.value = ""; return;
+    }
+    const r = new FileReader();
+    r.onload = ev => { setInput(ev.target.result); setFileName(f.name); setError(null); };
+    r.readAsText(f);
+    e.target.value = "";
   };
 
   const handleSubmit = async () => {
@@ -680,18 +513,22 @@ function UnifiedInput({ t, onSingleResult, onLogResult, onClearAll }) {
         </div>
         <div style={{ display: "flex", gap: "6px" }}>
           {mode && <span style={{ fontSize: "10px", fontWeight: 700, padding: "3px 8px", borderRadius: "20px", background: mode === "log" ? t.purpleBg : t.accentBg, color: mode === "log" ? t.purple : t.accent, border: `1px solid ${mode === "log" ? t.purple : t.accent}` }}>{mode === "log" ? `LOG · ${countFixStarts(input)} MSG` : "SINGLE MSG"}</span>}
-          <Btn t={t} onClick={() => setInput("8=FIX.4.2|9=458|35=W|34=3|49=TT_PRICE|52=20260615-10:25:15.627|56=QALGOMARKET|15=USD|48=14347306835933645772|55=GC|100=XCEC|107=Gold 100 oz|167=FUT|200=202608|205=27|207=CME|262=218888029250001|268=10|269=0|270=43593|271=3|290=1|269=1|270=43598|271=1|290=1|269=Y|270=43591|271=1|290=1|269=Z|270=43603|271=1|290=1|269=B|271=58663|269=x|270=43597|271=1|269=6|270=42388|272=20260612|273=00:00:00|269=4|270=42894|269=7|270=43661|269=8|270=42834|460=2|461=F|541=20260827|18211=M|10=180|")}>Sample Group</Btn>
-          <Btn t={t} onClick={() => setInput(["8=FIX.4.4|9=61|35=A|49=EXEC|56=BANZAI|34=1|52=20260613-23:24:06|10=097|","8=FIX.4.4|9=116|35=D|49=BANZAI|56=EXEC|34=2|52=20260613-23:24:42|11=ORD1001|55=MSFT|54=1|38=10000|40=2|44=12.3|10=199|","8=FIX.4.4|9=123|35=8|49=EXEC|56=BANZAI|34=2|52=20260613-23:24:42|37=EXECORD1|11=ORD1001|17=EXEC1|150=0|39=0|55=MSFT|10=233|"].join("\n"))}>Sample log</Btn>
-          {input && <Btn t={t} onClick={() => { setInput(""); onClearAll(); }}>Clear</Btn>}
+          <Btn t={t} onClick={() => fileRef.current && fileRef.current.click()}>📁 Upload</Btn>
+          <input ref={fileRef} type="file" accept=".txt,.log" onChange={handleFile} style={{ display: "none" }} />
+          <Btn t={t} onClick={() => { setInput("8=FIX.4.2|9=458|35=W|34=3|49=TT_PRICE|52=20260615-10:25:15.627|56=QALGOMARKET|15=USD|48=14347306835933645772|55=GC|100=XCEC|107=Gold 100 oz|167=FUT|200=202608|205=27|207=CME|262=218888029250001|268=10|269=0|270=43593|271=3|290=1|269=1|270=43598|271=1|290=1|269=Y|270=43591|271=1|290=1|269=Z|270=43603|271=1|290=1|269=B|271=58663|269=x|270=43597|271=1|269=6|270=42388|272=20260612|273=00:00:00|269=4|270=42894|269=7|270=43661|269=8|270=42834|460=2|461=F|541=20260827|18211=M|10=180|"); setFileName(null); setError(null); }}>Sample Group</Btn>
+          <Btn t={t} onClick={() => { setInput(["8=FIX.4.4|9=61|35=A|49=EXEC|56=BANZAI|34=1|52=20260613-23:24:06|10=097|","8=FIX.4.4|9=116|35=D|49=BANZAI|56=EXEC|34=2|52=20260613-23:24:42|11=ORD1001|55=MSFT|54=1|38=10000|40=2|44=12.3|10=199|","8=FIX.4.4|9=123|35=8|49=EXEC|56=BANZAI|34=2|52=20260613-23:24:42|37=EXECORD1|11=ORD1001|17=EXEC1|150=0|39=0|55=MSFT|10=233|"].join("\n")); setFileName(null); setError(null); }}>Sample log</Btn>
+          {input && <Btn t={t} onClick={() => { setInput(""); setFileName(null); setError(null); onClearAll(); }}>Clear</Btn>}
         </div>
       </div>
 
       <div style={{ padding: "14px 18px" }}>
-        <textarea value={input} onChange={e => setInput(e.target.value)} rows={5} placeholder="8=FIX.4.4|9=...|35=D|...  — or paste raw production messages containing binary SOH lines" style={{ width: "100%", boxSizing: "border-box", fontFamily: "monospace", fontSize: "12px", padding: "10px 12px", border: `1px solid ${t.border}`, borderRadius: "8px", background: t.inputBg, color: t.text, resize: "vertical" }} onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") handleSubmit(); }} />
+        {fileName && <div style={{ fontSize: "11px", color: t.textMuted, marginBottom: "8px" }}>📁 {fileName}</div>}
+        <textarea value={input} onChange={e => { setInput(e.target.value); setFileName(null); }} rows={5} placeholder="8=FIX.4.4|9=...|35=D|...  — or paste raw production messages containing binary SOH lines" style={{ width: "100%", boxSizing: "border-box", fontFamily: "monospace", fontSize: "12px", padding: "10px 12px", border: `1px solid ${t.border}`, borderRadius: "8px", background: t.inputBg, color: t.text, resize: "vertical" }} onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") handleSubmit(); }} />
         <div style={{ display: "flex", gap: "10px", alignItems: "center", marginTop: "10px" }}>
           <PrimaryBtn onClick={handleSubmit} loading={loading} disabled={!input.trim()} t={t}>{mode === "log" ? "Parse log →" : "Parse message →"}</PrimaryBtn>
           <span style={{ fontSize: "11px", color: t.textMuted }}>🔒 Privacy First: Messages transit encrypted and are never stored or logged on disk.</span>
         </div>
+        {error && <div style={{ marginTop: "10px", padding: "10px 12px", borderRadius: "8px", background: t.redBg, border: `1px solid ${t.red}`, color: t.red, fontSize: "12px" }}>{error}</div>}
       </div>
     </Card>
   );
@@ -714,7 +551,7 @@ function PopularTagsGrid({ t, onTagClick }) {
       <div style={{ fontSize: "11px", fontWeight: 600, color: t.textMuted, marginBottom: "10px" }}>COMMON TAGS — click to look up</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "6px" }}>
         {POPULAR_TAGS.map(([tag, name]) => (
-          <button key={tag} onClick={() => doLookup(tag)} style={{ textAlign: "left", padding: "10px 12px", borderRadius: "8px", border: `1px solid ${t.border}', background: t.panel, cursor: "pointer" }}>
+          <button key={tag} onClick={() => doLookup(tag)} style={{ textAlign: "left", padding: "10px 12px", borderRadius: "8px", border: `1px solid ${t.border}`, background: t.panel, cursor: "pointer" }}>
             <div style={{ fontSize: "10px", color: t.textFaint, fontFamily: "monospace" }}>TAG {tag}</div>
             <div style={{ fontSize: "13px", color: t.text, fontWeight: 600, marginTop: "2px" }}>{name}</div>
           </button>
@@ -729,6 +566,7 @@ export default function App() {
   const [themeName, setThemeName] = useState("dark");
   const t = T[themeName];
 
+  const [textareaInput, setTextareaInput] = useState("");
   const [singleResult, setSingleResult] = useState(null);
   const [singleInput, setSingleInput] = useState("");
   const [logMessages, setLogMessages] = useState(null);
@@ -737,6 +575,26 @@ export default function App() {
   const [tableFilter, setTableFilter] = useState("");
   const filterRef = useRef(null);
 
+  // FEATURE: Dynamic Browser Tab Icon / Favicon Injector
+  useEffect(() => {
+    const svgIcon = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+        <rect width="100" height="100" rx="20" fill="%230969da"/>
+        <path d="M25 75V55M50 75V30M75 75V45" stroke="white" stroke-width="10" stroke-linecap="round"/>
+      </svg>
+    `.trim().replace(/\s+/g, " ");
+    
+    let link = document.querySelector("link[rel~='icon']");
+    if (!link) {
+      link = document.createElement("link");
+      link.rel = "icon";
+      document.head.appendChild(link);
+    }
+    link.href = `data:image/svg+xml,${svgIcon}`;
+    document.title = "FIX Protocol Parser & Analyzer";
+  }, []);
+
+  // Keyboard Shortcuts Filter Auto-focus
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === "/" && document.activeElement?.tagName !== "TEXTAREA" && document.activeElement?.tagName !== "INPUT") {
@@ -762,11 +620,14 @@ export default function App() {
     setTableFilter("");
   };
 
-  const handleClearAll = () => {
+  // FEATURE: Logo Clickback Homepage Reset Hook
+  const handleHomeReset = () => {
     setSingleResult(null);
     setSingleInput("");
     setLogMessages(null);
     setTableFilter("");
+    setTagPanel(null);
+    setTextareaInput("");
   };
 
   const hasResult = singleResult || logMessages;
@@ -782,23 +643,27 @@ export default function App() {
 
       <div style={{ minHeight: "100vh", background: t.page, color: t.text, fontFamily: "system-ui, sans-serif", display: "flex", flexDirection: "column", width: "100%" }}>
         
+        {/* Header */}
         <header style={{ position: "sticky", top: 0, zIndex: 100, background: t.header, borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", padding: "0 24px", height: "52px", gap: "16px", width: "100%" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          
+          {/* Clickable Reset Logo */}
+          <div onClick={handleHomeReset} style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", userSelect: "none" }} title="Return to Homepage">
             <div style={{ width: "28px", height: "28px", borderRadius: "6px", background: t.accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px", fontWeight: 800, color: "#fff" }}>F</div>
             <div>
               <div style={{ fontSize: "14px", fontWeight: 700, color: t.text, lineHeight: 1.1 }}><span style={{ color: t.accent }}>FIX</span> Parser</div>
               <div style={{ fontSize: "9px", color: t.textFaint, letterSpacing: "0.5px" }}>PROTOCOL ANALYSIS</div>
             </div>
           </div>
+
           <div style={{ flex: 1 }} />
           <HeaderTagSearch t={t} onResult={f => setTagPanel(f)} />
-          <button onClick={() => setThemeName(n => n === "dark" ? "light" : "dark")} style={{ height: "32px", padding: "0 12px", borderRadius: "6px", fontSize: "12px", border: `1px solid ${t.border}', background: "transparent", color: t.textMuted, cursor: "pointer" }}>
+          <button onClick={() => setThemeName(n => n === "dark" ? "light" : "dark")} style={{ height: "32px", padding: "0 12px", borderRadius: "6px", fontSize: "12px", border: `1px solid ${t.border}`, background: "transparent", color: t.textMuted, cursor: "pointer" }}>
             {themeName === "dark" ? "☀ Light" : "🌙 Dark"}
           </button>
         </header>
 
         <main style={{ flex: 1, padding: "24px", width: "100%" }}>
-          <UnifiedInput t={t} onSingleResult={handleSingleResult} onLogResult={handleLogResult} onClearAll={handleClearAll} />
+          <UnifiedInput t={t} onSingleResult={handleSingleResult} onLogResult={handleLogResult} onClearAll={handleHomeReset} input={textareaInput} setInput={setTextareaInput} />
 
           {singleResult && (
             <SingleResult result={singleResult} originalInput={singleInput} t={t} onTagClick={f => setTagPanel(f)} filterRef={filterRef} tableFilter={tableFilter} setTableFilter={setTableFilter} />
