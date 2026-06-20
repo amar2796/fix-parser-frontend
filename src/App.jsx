@@ -121,57 +121,6 @@ function Btn({ children, onClick, disabled, style = {}, t }) {
   );
 }
 
-function PrimaryBtn({ children, onClick, disabled, loading, t, style = {} }) {
-  return (
-    <button onClick={onClick} disabled={disabled || loading} style={{
-      padding: "8px 20px", borderRadius: "8px", fontSize: "13px", fontWeight: 600,
-      border: "none", cursor: disabled || loading ? "default" : "pointer",
-      background: disabled || loading ? t.textFaint : t.accent,
-      color: "#fff", transition: "opacity 0.15s", ...style,
-    }}>{loading ? "Processing…" : children}</button>
-  );
-}
-
-function Card({ children, t, style = {} }) {
-  return (
-    <div style={{
-      background: t.panel, border: `1px solid ${t.border}`,
-      borderRadius: "10px", overflow: "hidden", ...style,
-    }}>{children}</div>
-  );
-}
-
-function Badge({ text, t }) {
-  const s = badgeFor(text, t);
-  return (
-    <span style={{
-      display: "inline-block", padding: "2px 8px", borderRadius: "20px",
-      fontSize: "11px", fontWeight: 600, letterSpacing: "0.3px",
-      background: s.bg, color: s.fg, border: `1px solid ${s.border}`, whiteSpace: "nowrap",
-    }}>{text}</span>
-  );
-}
-
-function ValidationBanner({ result, t }) {
-  const ok = result.isValid;
-  return (
-    <div style={{
-      padding: "10px 16px", borderRadius: "8px", marginBottom: "14px",
-      background: ok ? t.greenBg : t.redBg,
-      border: `1px solid ${ok ? t.green : t.red}`,
-      color: ok ? t.green : t.red,
-    }}>
-      <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: !ok && result.validationErrors?.length ? "6px" : 0 }}>
-        {ok ? "✓ Valid" : "✗ Validation errors"}{" "}
-        <span style={{ fontWeight: 400, color: t.textMuted }}>· {result.msgTypeName}</span>
-      </div>
-      {!ok && result.validationErrors?.map((e, i) => (
-        <div key={i} style={{ fontSize: "12px", marginTop: "3px" }}>· {e}</div>
-      ))}
-    </div>
-  );
-}
-
 // ─── Order Execution Summary Visualizer ───────────────────────────────────────
 function ExecutionSummaryVisualizer({ result, t }) {
   const isExecutionReport = result.msgType === "8";
@@ -230,6 +179,96 @@ function ExecutionSummaryVisualizer({ result, t }) {
   );
 }
 
+function PrimaryBtn({ children, onClick, disabled, loading, t, style = {} }) {
+  return (
+    <button onClick={onClick} disabled={disabled || loading} style={{
+      padding: "8px 20px", borderRadius: "8px", fontSize: "13px", fontWeight: 600,
+      border: "none", cursor: disabled || loading ? "default" : "pointer",
+      background: disabled || loading ? t.textFaint : t.accent,
+      color: "#fff", transition: "opacity 0.15s", ...style,
+    }}>{loading ? "Processing…" : children}</button>
+  );
+}
+
+function Card({ children, t, style = {} }) {
+  return (
+    <div style={{
+      background: t.panel, border: `1px solid ${t.border}`,
+      borderRadius: "10px", overflow: "hidden", ...style,
+    }}>{children}</div>
+  );
+}
+
+function Badge({ text, t }) {
+  const s = badgeFor(text, t);
+  return (
+    <span style={{
+      display: "inline-block", padding: "2px 8px", borderRadius: "20px",
+      fontSize: "11px", fontWeight: 600, letterSpacing: "0.3px",
+      background: s.bg, color: s.fg, border: `1px solid ${s.border}`, whiteSpace: "nowrap",
+    }}>{text}</span>
+  );
+}
+
+function ValidationBanner({ result, t }) {
+  const ok = result.isValid;
+  return (
+    <div style={{
+      padding: "10px 16px", borderRadius: "8px", marginBottom: "14px",
+      background: ok ? t.greenBg : t.redBg,
+      border: `1px solid ${ok ? t.green : t.red}`,
+      color: ok ? t.green : t.red,
+    }}>
+      <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: !ok && result.validationErrors?.length ? "6px" : 0 }}>
+        {ok ? "✓ Valid" : "✗ Validation errors"}{" "}
+        <span style={{ fontWeight: 400, color: t.textMuted }}>· {result.msgTypeName}</span>
+      </div>
+      {!ok && result.validationErrors?.map((e, i) => (
+        <div key={i} style={{ fontSize: "12px", marginTop: "3px" }}>· {e}</div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Anatomy Bar ──────────────────────────────────────────────────────────────
+function ThemedAnatomyBar({ result, originalInput, stepIdx = null, onClickField = null, t }) {
+  let delim = "|";
+  if (originalInput.includes("\x01")) delim = "\x01";
+  else if (originalInput.includes(";")) delim = ";";
+  else if (originalInput.includes("^") && !originalInput.includes("|")) delim = "^";
+  const parts = originalInput.split(delim).filter(p => p.length > 0);
+  const seq = result.sequence || [];
+  return (
+    <div style={{
+      background: t.inputBg, border: `1px solid ${t.border}`, borderRadius: "8px",
+      padding: "10px 12px",
+      fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace",
+      fontSize: "11px", lineHeight: "1.8", wordBreak: "break-all",
+    }}>
+      {parts.map((part, i) => {
+        const field = seq[i];
+        const section = field ? sectionOf(field, result) : "body";
+        const sc = t.sections[section];
+        const isCurrent = stepIdx !== null && i === stepIdx;
+        return (
+          <span key={i} onClick={() => onClickField && onClickField(i)}
+            title={field ? `Tag ${field.tag} · ${field.name} = ${field.raw}` : part}
+            style={{
+              display: "inline-block", padding: "1px 5px", marginRight: "2px",
+              borderRadius: "3px", cursor: onClickField ? "pointer" : "default",
+              transition: "all 0.15s",
+              background: isCurrent ? sc.border : (stepIdx !== null ? "transparent" : sc.bg),
+              color: isCurrent ? "#fff" : (stepIdx !== null && !isCurrent ? t.textFaint : sc.text),
+              fontWeight: isCurrent ? 700 : 400,
+              transform: isCurrent ? "scale(1.06)" : "scale(1)",
+            }}
+          >{part}</span>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Field Table (With Smart Repeating Group Segmentation) ─────────────────────
 function FieldTable({ rows, sectionKey, t, onTagClick, filterText }) {
   const sc = t.sections[sectionKey];
@@ -256,7 +295,7 @@ function FieldTable({ rows, sectionKey, t, onTagClick, filterText }) {
     }
   });
 
-  const renderRawTable = (fieldsList, isEmbedded = false) => (
+  const renderRawTable = (fieldsList) => (
     <table style={{ width: "100%", borderCollapse: "collapse" }}>
       <thead>
         <tr style={{ borderBottom: `1px solid ${t.border}` }}>
@@ -297,13 +336,12 @@ function FieldTable({ rows, sectionKey, t, onTagClick, filterText }) {
       <div style={{ border: `1px solid ${t.border}`, borderTop: "none", borderRadius: "0 0 6px 6px", background: t.panel, overflow: "hidden" }}>
         {baseFields.length > 0 && renderRawTable(baseFields)}
         
-        {/* Repeating sequences rendering with strong structural visualization blocks */}
         {Object.keys(groupsMap).map((gIdx) => (
           <div key={gIdx} style={{ margin: "10px", padding: "10px", background: t.panelAlt, borderLeft: `3px solid ${t.purple}`, borderRadius: "6px", boxShadow: t.shadow }}>
             <div style={{ fontSize: "10px", fontWeight: 700, color: t.purple, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "8px" }}>
               📦 Repeating Entry Sequence Block #{parseInt(gIdx) + 1}
             </div>
-            {renderRawTable(groupsMap[gIdx], true)}
+            {renderRawTable(groupsMap[gIdx])}
           </div>
         ))}
       </div>
