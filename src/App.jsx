@@ -100,20 +100,6 @@ function buildRelatedIdMap(messages) {
   const map = {}; Object.keys(parent).forEach(id => { map[id] = find(id); }); return map;
 }
 
-// ─── Sample data ──────────────────────────────────────────────────────────────
-const SAMPLE_SINGLE = "8=FIX.4.4|9=120|35=D|49=SENDER|56=TARGET|34=12|52=20260613-18:15:00|11=ClOrd123|55=AAPL|54=1|38=100|40=2|44=150.00|60=20260613-18:15:00|10=068|";
-
-const SAMPLE_LOG = [
-  "8=FIX.4.4|9=61|35=A|49=EXEC|56=BANZAI|34=1|52=20260613-23:24:06|98=0|108=30|10=097|",
-  "8=FIX.4.4|9=116|35=D|49=BANZAI|56=EXEC|34=2|52=20260613-23:24:42|11=ORD1001|55=MSFT|54=1|38=10000|40=2|44=12.3|60=20260613-23:24:42|10=199|",
-  "8=FIX.4.4|9=123|35=8|49=EXEC|56=BANZAI|34=2|52=20260613-23:24:42|37=EXECORD1|11=ORD1001|17=EXEC1|150=0|39=0|55=MSFT|54=1|38=10000|14=0|6=0|10=233|",
-  "8=FIX.4.4|9=133|35=8|49=EXEC|56=BANZAI|34=3|52=20260613-23:24:42|37=EXECORD1|11=ORD1001|17=EXEC2|150=2|39=2|55=MSFT|54=1|38=10000|32=10000|31=12.3|14=10000|6=12.3|10=011|",
-  "8=FIX.4.4|9=112|35=D|49=BANZAI|56=EXEC|34=4|52=20260613-23:25:12|11=ORD1002|55=SPY|54=1|38=10000|40=2|44=10|60=20260613-23:25:12|10=003|",
-  "8=FIX.4.4|9=119|35=8|49=EXEC|56=BANZAI|34=4|52=20260613-23:25:12|37=EXECORD2|11=ORD1002|17=EXEC3|150=0|39=0|55=SPY|54=1|38=10000|14=0|6=0|10=144|",
-  "8=FIX.4.4|9=98|35=F|49=BANZAI|56=EXEC|34=5|52=20260613-23:25:16|11=ORD1003|41=ORD1002|55=SPY|54=1|60=20260613-23:25:16|10=078|",
-  "8=FIX.4.4|9=86|35=3|49=EXEC|56=BANZAI|34=5|52=20260613-23:25:16|45=5|58=Unsupported message type|372=F|373=3|10=066|",
-].join("\n");
-
 const POPULAR_TAGS = [
   [8,"BeginString"],[9,"BodyLength"],[35,"MsgType"],[49,"SenderCompID"],[56,"TargetCompID"],
   [11,"ClOrdID"],[55,"Symbol"],[54,"Side"],[38,"OrderQty"],[40,"OrdType"],[44,"Price"],
@@ -498,7 +484,6 @@ function SingleResult({ result, originalInput, t, onTagClick }) {
     <div style={{ marginTop: "20px" }}>
       <ThemedAnatomyBar result={result} originalInput={originalInput} t={t} />
 
-      {/* Meta stats */}
       <div style={{ display: "flex", gap: "8px", margin: "12px 0", flexWrap: "wrap" }}>
         {[
           ["Delimiter", result.delimiterDetected === "^" ? "SOH" : result.delimiterDetected],
@@ -515,7 +500,6 @@ function SingleResult({ result, originalInput, t, onTagClick }) {
 
       <ValidationBanner result={result} t={t} />
 
-      {/* Sub-view tabs */}
       <div style={{ display: "flex", gap: "6px", marginBottom: "14px" }}>
         {["table", "walkthrough"].map(v => (
           <button key={v} onClick={() => setSubView(v)} style={{
@@ -550,7 +534,6 @@ function SessionResult({ messages, t, onTagClick }) {
 
   return (
     <div style={{ marginTop: "20px", display: "flex", gap: "16px", alignItems: "flex-start" }}>
-      {/* Timeline */}
       <div style={{ flex: "0 0 300px", minWidth: "240px" }}>
         <div style={{ fontSize: "11px", fontWeight: 600, color: t.textMuted, letterSpacing: "0.5px", marginBottom: "8px", padding: "0 2px" }}>
           TIMELINE · {messages.length} MESSAGES
@@ -592,7 +575,6 @@ function SessionResult({ messages, t, onTagClick }) {
         </Card>
       </div>
 
-      {/* Detail panel */}
       <div style={{ flex: 1, minWidth: 0 }}>
         {sel ? (
           <div>
@@ -629,7 +611,7 @@ function SessionResult({ messages, t, onTagClick }) {
 }
 
 // ─── Unified Input ────────────────────────────────────────────────────────────
-function UnifiedInput({ t, onSingleResult, onLogResult }) {
+function UnifiedInput({ t, onSingleResult, onLogResult, onClearAll }) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -673,7 +655,6 @@ function UnifiedInput({ t, onSingleResult, onLogResult }) {
 
   return (
     <Card t={t}>
-      {/* Card header */}
       <div style={{ padding: "14px 18px", borderBottom: `1px solid ${t.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <div style={{ fontSize: "13px", fontWeight: 600, color: t.text }}>Paste a FIX message or log</div>
@@ -692,19 +673,23 @@ function UnifiedInput({ t, onSingleResult, onLogResult }) {
           )}
           <Btn t={t} onClick={() => fileRef.current && fileRef.current.click()}>📁 Upload</Btn>
           <input ref={fileRef} type="file" accept=".txt,.log" onChange={handleFile} style={{ display: "none" }} />
-          <Btn t={t} onClick={() => { setInput(SAMPLE_SINGLE); setFileName(null); setError(null); }}>Sample</Btn>
-          <Btn t={t} onClick={() => { setInput(SAMPLE_LOG); setFileName(null); setError(null); }}>Sample log</Btn>
-          {input && <Btn t={t} onClick={() => { setInput(""); setFileName(null); setError(null); }}>Clear</Btn>}
+          <Btn t={t} onClick={() => { setInput("8=FIX.4.4|9=120|35=D|49=SENDER|56=TARGET|34=12|52=20260613-18:15:00|11=ClOrd123|55=AAPL|54=1|38=100|40=2|44=150.00|60=20260613-18:15:00|10=068|"); setFileName(null); setError(null); }}>Sample</Btn>
+          <Btn t={t} onClick={() => { setInput([
+            "8=FIX.4.4|9=61|35=A|49=EXEC|56=BANZAI|34=1|52=20260613-23:24:06|98=0|108=30|10=097|",
+            "8=FIX.4.4|9=116|35=D|49=BANZAI|56=EXEC|34=2|52=20260613-23:24:42|11=ORD1001|55=MSFT|54=1|38=10000|40=2|44=12.3|60=20260613-23:24:42|10=199|",
+            "8=FIX.4.4|9=123|35=8|49=EXEC|56=BANZAI|34=2|52=20260613-23:24:42|37=EXECORD1|11=ORD1001|17=EXEC1|150=0|39=0|55=MSFT|54=1|38=10000|14=0|6=0|10=233|",
+            "8=FIX.4.4|9=133|35=8|49=EXEC|56=BANZAI|34=3|52=20260613-23:24:42|37=EXECORD1|11=ORD1001|17=EXEC2|150=2|39=2|55=MSFT|54=1|38=10000|32=10000|31=12.3|14=10000|6=12.3|10=011|",
+            "8=FIX.4.4|9=112|35=D|49=BANZAI|56=EXEC|34=4|52=20260613-23:25:12|11=ORD1002|55=SPY|54=1|38=10000|40=2|44=10|60=20260613-23:25:12|10=003|",
+            "8=FIX.4.4|9=119|35=8|49=EXEC|56=BANZAI|34=4|52=20260613-23:25:12|37=EXECORD2|11=ORD1002|17=EXEC3|150=0|39=0|55=SPY|54=1|38=10000|14=0|6=0|10=144|",
+            "8=FIX.4.4|9=98|35=F|49=BANZAI|56=EXEC|34=5|52=20260613-23:25:16|11=ORD1003|41=ORD1002|55=SPY|54=1|60=20260613-23:25:16|10=078|",
+            "8=FIX.4.4|9=86|35=3|49=EXEC|56=BANZAI|34=5|52=20260613-23:25:16|45=5|58=Unsupported message type|372=F|373=3|10=066|",
+          ].join("\n")); setFileName(null); setError(null); }}>Sample log</Btn>
+          {input && <Btn t={t} onClick={() => { setInput(""); setFileName(null); setError(null); onClearAll(); }}>Clear</Btn>}
         </div>
       </div>
 
-      {/* Textarea */}
       <div style={{ padding: "14px 18px" }}>
-        {fileName && (
-          <div style={{ fontSize: "11px", color: t.textMuted, marginBottom: "8px" }}>
-            📁 {fileName}
-          </div>
-        )}
+        {fileName && <div style={{ fontSize: "11px", color: t.textMuted, marginBottom: "8px" }}>📁 {fileName}</div>}
         <textarea
           value={input}
           onChange={e => { setInput(e.target.value); setFileName(null); }}
@@ -773,12 +758,9 @@ export default function App() {
   const [themeName, setThemeName] = useState("dark");
   const t = T[themeName];
 
-  // Results state
   const [singleResult, setSingleResult] = useState(null);
   const [singleInput, setSingleInput] = useState("");
   const [logMessages, setLogMessages] = useState(null);
-
-  // Tag panel
   const [tagPanel, setTagPanel] = useState(null);
 
   const handleSingleResult = (result, input) => {
@@ -793,15 +775,24 @@ export default function App() {
     setSingleInput("");
   };
 
+  const handleClearAll = () => {
+    setSingleResult(null);
+    setSingleInput("");
+    setLogMessages(null);
+  };
+
   const hasResult = singleResult || logMessages;
 
   return (
     <>
-      {/* Global reset */}
+      {/* CRITICAL FIX: Overriding constraints globally from index.css and App.css 
+        to maximize screen workspace width completely and bypass boilerplate flex-centering 
+      */}
       <style>{`
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        html, body, #root { height: 100%; }
-        body { background: ${t.page}; }
+        html, body, #root { height: 100%; width: 100%; }
+        body { background: ${t.page}; display: block !important; }
+        #root { max-width: none !important; margin: 0 !important; padding: 0 !important; text-align: left !important; }
         button { font-family: inherit; }
         textarea, input, select { font-family: inherit; }
         a { text-decoration: none; }
@@ -810,7 +801,7 @@ export default function App() {
       <div style={{
         minHeight: "100vh", background: t.page, color: t.text,
         fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-        display: "flex", flexDirection: "column",
+        display: "flex", flexDirection: "column", width: "100%"
       }}>
 
         {/* ── Header ── */}
@@ -820,8 +811,8 @@ export default function App() {
           display: "flex", alignItems: "center",
           padding: "0 24px", height: "52px", gap: "16px",
           boxShadow: themeName === "dark" ? "0 1px 0 #30363d" : "0 1px 0 #d0d7de",
+          width: "100%"
         }}>
-          {/* Logo */}
           <div style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0 }}>
             <div style={{
               width: "28px", height: "28px", borderRadius: "6px",
@@ -836,13 +827,9 @@ export default function App() {
             </div>
           </div>
 
-          {/* Spacer */}
           <div style={{ flex: 1 }} />
-
-          {/* Tag search */}
           <HeaderTagSearch t={t} onResult={f => setTagPanel(f)} />
 
-          {/* Theme toggle */}
           <button onClick={() => setThemeName(n => n === "dark" ? "light" : "dark")} style={{
             height: "32px", padding: "0 12px", borderRadius: "6px", fontSize: "12px",
             border: `1px solid ${t.border}`, background: "transparent", color: t.textMuted,
@@ -854,12 +841,15 @@ export default function App() {
         </header>
 
         {/* ── Main content ── */}
-        <main style={{ flex: 1, padding: "24px", maxWidth: "none", width: "100%" }}>
+        <main style={{ flex: 1, padding: "24px", width: "100%", boxSizing: "border-box" }}>
+          
+          <UnifiedInput 
+            t={t} 
+            onSingleResult={handleSingleResult} 
+            onLogResult={handleLogResult} 
+            onClearAll={handleClearAll} 
+          />
 
-          {/* Unified input */}
-          <UnifiedInput t={t} onSingleResult={handleSingleResult} onLogResult={handleLogResult} />
-
-          {/* Results */}
           {singleResult && (
             <SingleResult result={singleResult} originalInput={singleInput} t={t} onTagClick={f => setTagPanel(f)} />
           )}
@@ -867,14 +857,12 @@ export default function App() {
             <SessionResult messages={logMessages} t={t} onTagClick={f => setTagPanel(f)} />
           )}
 
-          {/* Empty state — show popular tags */}
           {!hasResult && (
             <PopularTagsGrid t={t} onTagClick={f => setTagPanel(f)} />
           )}
         </main>
       </div>
 
-      {/* Tag slide-in panel */}
       {tagPanel && <TagPanel field={tagPanel} onClose={() => setTagPanel(null)} t={t} />}
     </>
   );
