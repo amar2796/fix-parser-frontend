@@ -21,7 +21,7 @@ const T = {
     green:     "#3fb950",
     greenBg:   "rgba(63,185,80,0.12)",
     red:       "#f85149",
-    redBg:   "rgba(248,81,73,0.12)",
+    redBg:     "rgba(248,81,73,0.12)",
     yellow:    "#e3b341",
     yellowBg:  "rgba(227,179,65,0.12)",
     purple:    "#bc8cff",
@@ -136,115 +136,6 @@ function Btn({ children, onClick, disabled, style = {}, t }) {
       color: disabled ? (t ? t.textFaint : "#484f58") : (t ? t.text : "#e6edf3"),
       transition: "border-color 0.15s", ...style,
     }}>{children}</button>
-  );
-}
-
-function PrimaryBtn({ children, onClick, disabled, loading, t, style = {} }) {
-  return (
-    <button onClick={onClick} disabled={disabled || loading} style={{
-      padding: "8px 20px", borderRadius: "8px", fontSize: "13px", fontWeight: 600,
-      border: "none", cursor: disabled || loading ? "default" : "pointer",
-      background: disabled || loading ? t.textFaint : t.accent,
-      color: "#fff", transition: "opacity 0.15s", ...style,
-    }}>{loading ? "Processing…" : children}</button>
-  );
-}
-
-function Card({ children, t, style = {} }) {
-  return (
-    <div style={{
-      background: t.panel, border: `1px solid ${t.border}`,
-      borderRadius: "10px", overflow: "hidden", ...style,
-    }}>{children}</div>
-  );
-}
-
-function Badge({ text, t }) {
-  const s = badgeFor(text, t);
-  return (
-    <span style={{
-      display: "inline-block", padding: "2px 8px", borderRadius: "20px",
-      fontSize: "11px", fontWeight: 600, letterSpacing: "0.3px",
-      background: s.bg, color: s.fg, border: `1px solid ${s.border}`, whiteSpace: "nowrap",
-    }}>{text}</span>
-  );
-}
-
-function ValidationBanner({ result, t }) {
-  const ok = result.isValid;
-  return (
-    <div style={{
-      padding: "10px 16px", borderRadius: "8px", marginBottom: "14px",
-      background: ok ? t.greenBg : t.redBg,
-      border: `1px solid ${ok ? t.green : t.red}`,
-      color: ok ? t.green : t.red,
-    }}>
-      <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: !ok && result.validationErrors?.length ? "6px" : 0 }}>
-        {ok ? "✓ Valid" : "✗ Validation errors"}{" "}
-        <span style={{ fontWeight: 400, color: t.textMuted }}>· {result.msgTypeName}</span>
-      </div>
-      {!ok && result.validationErrors?.map((e, i) => (
-        <div key={i} style={{ fontSize: "12px", marginTop: "3px" }}>· {e}</div>
-      ))}
-    </div>
-  );
-}
-
-// ─── Order Execution Summary Visualizer ───────────────────────────────────────
-function ExecutionSummaryVisualizer({ result, t }) {
-  const isExecutionReport = result.msgType === "8";
-  const isNewOrder = result.msgType === "D";
-  const isCancel = result.msgType === "F" || result.msgType === "G" || result.msgType === "9";
-  
-  if (!isExecutionReport && !isNewOrder && !isCancel) return null;
-
-  let currentStep = 0; 
-  let statusText = result.msgTypeName;
-  let color = t.accent;
-
-  const fields = [...result.components.header, ...result.components.body, ...result.components.trailer];
-  const ordStatusField = fields.find(f => f.tag === 39);
-  const statusVal = ordStatusField ? ordStatusField.raw : "";
-
-  if (statusVal === "0" || isNewOrder) { currentStep = 1; statusText = "New Order Active"; color = t.accent; }
-  else if (statusVal === "1") { currentStep = 2; statusText = "Partially Filled"; color = t.yellow; }
-  else if (statusVal === "2") { currentStep = 3; statusText = "Fully Filled!"; color = t.green; }
-  else if (statusVal === "4" || statusVal === "8" || result.msgType === "9") { currentStep = 4; statusText = "Terminated (Canceled/Rejected)"; color = t.red; }
-
-  const steps = [
-    { label: "Placement", step: 0 },
-    { label: "Acknowledged", step: 1 },
-    { label: "Partial Fill", step: 2 },
-    { label: "Fully Executed", step: 3 }
-  ];
-
-  return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: t.panelAlt, border: `1px solid ${t.border}`, padding: "12px 20px", borderRadius: "8px", marginBottom: "14px" }}>
-      <div style={{ display: "flex", flexDirection: "column" }}>
-        <span style={{ fontSize: "10px", fontWeight: 700, color: t.textMuted, letterSpacing: "0.5px" }}>EXECUTION SUMMARY</span>
-        <span style={{ fontSize: "15px", fontWeight: 700, color: color, marginTop: "2px" }}>{statusText}</span>
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
-        {steps.map((s, index) => {
-          const active = currentStep >= s.step && currentStep !== 4;
-          const isTerminated = currentStep === 4;
-          return (
-            <div key={index} style={{ display: "flex", alignItems: "center", gap: "8px", opacity: active || (isTerminated && index === 3) ? 1 : 0.35 }}>
-              <div style={{
-                width: "20px", height: "20px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: 700,
-                background: isTerminated && index === 3 ? t.redBg : active ? t.greenBg : t.border,
-                color: isTerminated && index === 3 ? t.red : active ? t.green : t.textMuted,
-                border: `1px solid ${isTerminated && index === 3 ? t.red : active ? t.green : "transparent"}`
-              }}>
-                {isTerminated && index === 3 ? "✕" : "✓"}
-              </div>
-              <span style={{ fontSize: "12px", fontWeight: 500, color: t.text }}>{isTerminated && index === 3 ? "Terminated" : s.label}</span>
-              {index < steps.length - 1 && <span style={{ color: t.textFaint, marginLeft: "12px" }}>➔</span>}
-            </div>
-          );
-        })}
-      </div>
-    </div>
   );
 }
 
@@ -386,6 +277,64 @@ function FieldTable({ rows, sectionKey, t, onTagClick, filterText }) {
             {renderRawTable(groupsMap[gIdx])}
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Order Execution Summary Visualizer ───────────────────────────────────────
+function ExecutionSummaryVisualizer({ result, t }) {
+  const isExecutionReport = result.msgType === "8";
+  const isNewOrder = result.msgType === "D";
+  const isCancel = result.msgType === "F" || result.msgType === "G" || result.msgType === "9";
+  
+  if (!isExecutionReport && !isNewOrder && !isCancel) return null;
+
+  let currentStep = 0; 
+  let statusText = result.msgTypeName;
+  let color = t.accent;
+
+  const fields = [...result.components.header, ...result.components.body, ...result.components.trailer];
+  const ordStatusField = fields.find(f => f.tag === 39);
+  const statusVal = ordStatusField ? ordStatusField.raw : "";
+
+  if (statusVal === "0" || isNewOrder) { currentStep = 1; statusText = "New Order Active"; color = t.accent; }
+  else if (statusVal === "1") { currentStep = 2; statusText = "Partially Filled"; color = t.yellow; }
+  else if (statusVal === "2") { currentStep = 3; statusText = "Fully Filled!"; color = t.green; }
+  else if (statusVal === "4" || statusVal === "8" || result.msgType === "9") { currentStep = 4; statusText = "Terminated (Canceled/Rejected)"; color = t.red; }
+
+  const steps = [
+    { label: "Placement", step: 0 },
+    { label: "Acknowledged", step: 1 },
+    { label: "Partial Fill", step: 2 },
+    { label: "Fully Executed", step: 3 }
+  ];
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: t.panelAlt, border: `1px solid ${t.border}`, padding: "12px 20px", borderRadius: "8px", marginBottom: "14px" }}>
+      <div style={{ display: "flex", flexDirection: "column" }}>
+        <span style={{ fontSize: "10px", fontWeight: 700, color: t.textMuted, letterSpacing: "0.5px" }}>EXECUTION SUMMARY</span>
+        <span style={{ fontSize: "15px", fontWeight: 700, color: color, marginTop: "2px" }}>{statusText}</span>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
+        {steps.map((s, index) => {
+          const active = currentStep >= s.step && currentStep !== 4;
+          const isTerminated = currentStep === 4;
+          return (
+            <div key={index} style={{ display: "flex", alignItems: "center", gap: "8px", opacity: active || (isTerminated && index === 3) ? 1 : 0.35 }}>
+              <div style={{
+                width: "20px", height: "20px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: 700,
+                background: isTerminated && index === 3 ? t.redBg : active ? t.greenBg : t.border,
+                color: isTerminated && index === 3 ? t.red : active ? t.green : t.textMuted,
+                border: `1px solid ${isTerminated && index === 3 ? t.red : active ? t.green : "transparent"}`
+              }}>
+                {isTerminated && index === 3 ? "✕" : "✓"}
+              </div>
+              <span style={{ fontSize: "12px", fontWeight: 500, color: t.text }}>{isTerminated && index === 3 ? "Terminated" : s.label}</span>
+              {index < steps.length - 1 && <span style={{ color: t.textFaint, marginLeft: "12px" }}>➔</span>}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -622,13 +571,26 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
 
               return (
                 <div key={i} style={{ display: "flex", flexDirection: "column" }}>
+                  {/* FEATURE: Highly Visual Segmented Micro-latency Line Tracker */}
                   {timeDelta && (
-                    <div style={{ display: "flex", justifyContent: "center", margin: "4px 0" }}>
-                      <span style={{ fontSize: "10px", padding: "2px 8px", background: t.panel, color: t.purple, borderRadius: "4px", border: `1px dashed ${t.border}`, fontWeight: 600 }}>{timeDelta} delay</span>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", position: "relative", margin: "6px 0" }}>
+                      <div style={{ width: "2px", height: "12px", background: t.border, opacity: 0.5 }} />
+                      <span style={{ 
+                        fontSize: "10px", padding: "3px 10px", background: t.page, color: t.purple, 
+                        borderRadius: "6px", border: `1px solid ${t.border}`, fontWeight: 700,
+                        letterSpacing: "0.3px", boxShadow: "0 2px 4px rgba(0,0,0,0.12)", zIndex: 2
+                      }}>{timeDelta} delay</span>
+                      <div style={{ width: "2px", height: "12px", background: t.border, opacity: 0.5 }} />
                     </div>
                   )}
                   <div onClick={() => { setSelectedIdx(i); setDetailMode("table"); setTableFilter(""); }}
-                    style={{ padding: "10px 14px", cursor: "pointer", borderBottom: `1px solid ${t.borderSub}`, borderLeft: `3px solid ${isSel ? t.accent : isRel ? t.yellow : "transparent"}`, background: isSel ? t.accentBg : isRel ? t.yellowBg : "transparent" }}>
+                    style={{ 
+                      padding: "12px 14px", cursor: "pointer", borderBottom: `1px solid ${t.borderSub}`, 
+                      borderLeft: `4px solid ${isSel ? t.accent : isRel ? t.yellow : "transparent"}`, 
+                      background: isSel ? t.accentBg : isRel ? t.yellowBg : "transparent",
+                      borderRadius: "6px", margin: "2px 6px", boxYizing: "border-box",
+                      boxShadow: isSel ? t.shadow : "none", transition: "all 0.15s ease"
+                    }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
                       <span style={{ fontSize: "10px", color: t.textFaint, fontFamily: "monospace" }}>{m.sendingTime ? m.sendingTime.split("-")[1] : `#${i + 1}`}</span>
                       <span style={{ fontSize: "10px", color: t.textFaint }}>{m.senderCompID}➔{m.targetCompID}</span>
@@ -636,7 +598,7 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
                     <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
                       <Badge text={m.msgTypeName} t={t} />
                     </div>
-                    <div style={{ fontSize: "12px", color: t.text, fontWeight: 500 }}>{m.summary}</div>
+                    <div style={{ fontSize: "12px", color: t.text, fontWeight: 500, marginTop: "4px" }}>{m.summary}</div>
                   </div>
                 </div>
               );
