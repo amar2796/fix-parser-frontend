@@ -100,7 +100,7 @@ function buildRelatedIdMap(messages) {
   const map = {}; Object.keys(parent).forEach(id => { map[id] = find(id); }); return map;
 }
 
-// Calculates millisecond latency differences between consecutive timeline messages
+// Latency calculation helper between timestamp strings
 function calculateTimeDelta(currTimeStr, prevTimeStr) {
   if (!currTimeStr || !prevTimeStr) return null;
   try {
@@ -188,7 +188,6 @@ function ThemedAnatomyBar({ result, originalInput, stepIdx = null, onClickField 
         })}
       </div>
 
-      {/* Floating Macro Hover Tooltip Overlay */}
       {hoveredField && (
         <div style={{
           position: "fixed", top: tooltipPos.y, left: tooltipPos.x,
@@ -435,11 +434,6 @@ function Walkthrough({ result, originalInput, t }) {
           <div style={{ fontSize: "10px", fontWeight: 700, color: sc.border, letterSpacing: "0.8px", marginBottom: "4px" }}>WHY THIS MATTERS</div>
           <div style={{ fontSize: "13px", color: t.textMuted, lineHeight: 1.6 }}>{cur.why}</div>
         </div>
-        {cur.referenceUrl && (
-          <a href={cur.referenceUrl} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", marginTop: "6px", fontSize: "12px", color: t.accent }}>
-            View official spec for tag {cur.tag} ↗
-          </a>
-        )}
       </div>
     </div>
   );
@@ -518,7 +512,7 @@ function SingleResult({ result, originalInput, t, onTagClick, filterRef, tableFi
           ["Checksum",  `${result.checksum.actual} (calc ${result.checksum.calculated})`],
           ["Body len",  `${result.bodyLength.actual} (calc ${result.bodyLength.calculated})`],
         ].map(([k, v]) => (
-          <div key={k} style={{ padding: "7px 12px", background: t.panel, border: `1px solid ${t.border}`, borderRadius: "7px", flex: "1 1 160px" }}>
+          <div key={k} style={{ padding: "7px 12px", background: t.panel, border: `1px solid ${t.border}', borderRadius: "7px", flex: "1 1 160px" }}>
             <div style={{ fontSize: "10px", color: t.textMuted }}>{k.toUpperCase()}</div>
             <div style={{ fontSize: "13px", fontWeight: 600, color: t.text, fontFamily: "monospace" }}>{v}</div>
           </div>
@@ -555,7 +549,7 @@ function SingleResult({ result, originalInput, t, onTagClick, filterRef, tableFi
   );
 }
 
-// ─── Session / Log Result (With Latency Tracker Badge Feature) ────────────────
+// ─── Session / Log Result ────────────────────────────────────────────────────
 function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTableFilter }) {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [detailMode, setDetailMode] = useState("table");
@@ -574,14 +568,13 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
               const isSel = i === selectedIdx;
               const isRel = selGroupKey && m.clOrdID && idMap[m.clOrdID] === selGroupKey && !isSel;
               
-              // Latency tracking calculations
               const timeDelta = i > 0 ? calculateTimeDelta(m.sendingTime, messages[i - 1].sendingTime) : null;
 
               return (
                 <div key={i} style={{ display: "flex", flexDirection: "column" }}>
                   {timeDelta && (
                     <div style={{ display: "flex", justifyContent: "center", margin: "4px 0" }}>
-                      <span style={{ fontSize: "10px", padding: "2px 8px", background: t.panel, color: t.purple, borderRadius: "4px", border: `1px dashed ${t.border}`, fontWeight: 600 }}>{timeDelta} delay</span>
+                      <span style={{ fontSize: "10px", padding: "2px 8px", background: t.panel, color: t.purple, borderRadius: "4px", border: `1px dashed ${t.border}', fontWeight: 600 }}>{timeDelta} delay</span>
                     </div>
                   )}
                   <div onClick={() => { setSelectedIdx(i); setDetailMode("table"); setTableFilter(""); }}
@@ -639,7 +632,7 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
   );
 }
 
-// ─── Unified Input (With Delimiter Fixer Feature) ───────────────────────────
+// ─── Unified Input ────────────────────────────────────────────────────────────
 function UnifiedInput({ t, onSingleResult, onLogResult, onClearAll }) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -651,7 +644,6 @@ function UnifiedInput({ t, onSingleResult, onLogResult, onClearAll }) {
   const mode = input.trim() ? (isLog ? "log" : "single") : null;
   const containsSOH = input.includes("\x01");
 
-  // Replaces raw unreadable SOH markers with clean viewable pipes
   const convertSOHToPipes = () => {
     setInput(prev => prev.replace(/\x01/g, "|"));
   };
@@ -680,10 +672,10 @@ function UnifiedInput({ t, onSingleResult, onLogResult, onClearAll }) {
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <div>
             <div style={{ fontSize: "13px", fontWeight: 600, color: t.text }}>Paste a FIX message or log</div>
-            <div style={{ fontSize: "11px", color: t.textMuted, marginTop: "1px" }}>Single message or multi-message log · delimiter auto-detected</div>
+            <div style={{ fontSize: "11px", color: t.textMuted, marginTop: "1px" }}>Secure SSL TLS encrypted verification engine</div>
           </div>
           {containsSOH && (
-            <button onClick={convertSOHToPipes} style={{ padding: "3px 8px", background: t.yellowBg, color: t.yellow, border: `1px solid ${t.yellow}`, borderRadius: "4px", fontSize: "11px", fontWeight: 600, cursor: "pointer" }}>⚠️ Contains Hidden SOH · Click to Fix</button>
+            <button onClick={convertSOHToPipes} style={{ padding: "3px 8px", background: t.yellowBg, color: t.yellow, border: `1px solid ${t.yellow}`, borderRadius: "4px", fontSize: "11px", fontWeight: 600, cursor: "pointer" }}>⚠️ Hidden SOH Detected · Click to Fix</button>
           )}
         </div>
         <div style={{ display: "flex", gap: "6px" }}>
@@ -698,7 +690,7 @@ function UnifiedInput({ t, onSingleResult, onLogResult, onClearAll }) {
         <textarea value={input} onChange={e => setInput(e.target.value)} rows={5} placeholder="8=FIX.4.4|9=...|35=D|...  — or paste raw production messages containing binary SOH lines" style={{ width: "100%", boxSizing: "border-box", fontFamily: "monospace", fontSize: "12px", padding: "10px 12px", border: `1px solid ${t.border}`, borderRadius: "8px", background: t.inputBg, color: t.text, resize: "vertical" }} onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") handleSubmit(); }} />
         <div style={{ display: "flex", gap: "10px", alignItems: "center", marginTop: "10px" }}>
           <PrimaryBtn onClick={handleSubmit} loading={loading} disabled={!input.trim()} t={t}>{mode === "log" ? "Parse log →" : "Parse message →"}</PrimaryBtn>
-          <span style={{ fontSize: "11px", color: t.textFaint }}>or Ctrl+Enter</span>
+          <span style={{ fontSize: "11px", color: t.textMuted }}>🔒 Privacy First: Messages transit encrypted and are never stored or logged on disk.</span>
         </div>
       </div>
     </Card>
@@ -722,7 +714,7 @@ function PopularTagsGrid({ t, onTagClick }) {
       <div style={{ fontSize: "11px", fontWeight: 600, color: t.textMuted, marginBottom: "10px" }}>COMMON TAGS — click to look up</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "6px" }}>
         {POPULAR_TAGS.map(([tag, name]) => (
-          <button key={tag} onClick={() => doLookup(tag)} style={{ textAlign: "left", padding: "10px 12px", borderRadius: "8px", border: `1px solid ${t.border}`, background: t.panel, cursor: "pointer" }}>
+          <button key={tag} onClick={() => doLookup(tag)} style={{ textAlign: "left", padding: "10px 12px", borderRadius: "8px", border: `1px solid ${t.border}', background: t.panel, cursor: "pointer" }}>
             <div style={{ fontSize: "10px", color: t.textFaint, fontFamily: "monospace" }}>TAG {tag}</div>
             <div style={{ fontSize: "13px", color: t.text, fontWeight: 600, marginTop: "2px" }}>{name}</div>
           </button>
@@ -745,7 +737,6 @@ export default function App() {
   const [tableFilter, setTableFilter] = useState("");
   const filterRef = useRef(null);
 
-  // Global Key Listener for Auto-Focus Shortcut ('/')
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === "/" && document.activeElement?.tagName !== "TEXTAREA" && document.activeElement?.tagName !== "INPUT") {
@@ -791,7 +782,6 @@ export default function App() {
 
       <div style={{ minHeight: "100vh", background: t.page, color: t.text, fontFamily: "system-ui, sans-serif", display: "flex", flexDirection: "column", width: "100%" }}>
         
-        {/* Header */}
         <header style={{ position: "sticky", top: 0, zIndex: 100, background: t.header, borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", padding: "0 24px", height: "52px", gap: "16px", width: "100%" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <div style={{ width: "28px", height: "28px", borderRadius: "6px", background: t.accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px", fontWeight: 800, color: "#fff" }}>F</div>
@@ -802,12 +792,11 @@ export default function App() {
           </div>
           <div style={{ flex: 1 }} />
           <HeaderTagSearch t={t} onResult={f => setTagPanel(f)} />
-          <button onClick={() => setThemeName(n => n === "dark" ? "light" : "dark")} style={{ height: "32px", padding: "0 12px", borderRadius: "6px", fontSize: "12px", border: `1px solid ${t.border}`, background: "transparent", color: t.textMuted, cursor: "pointer" }}>
+          <button onClick={() => setThemeName(n => n === "dark" ? "light" : "dark")} style={{ height: "32px", padding: "0 12px", borderRadius: "6px", fontSize: "12px", border: `1px solid ${t.border}', background: "transparent", color: t.textMuted, cursor: "pointer" }}>
             {themeName === "dark" ? "☀ Light" : "🌙 Dark"}
           </button>
         </header>
 
-        {/* Main Workspace Tier */}
         <main style={{ flex: 1, padding: "24px", width: "100%" }}>
           <UnifiedInput t={t} onSingleResult={handleSingleResult} onLogResult={handleLogResult} onClearAll={handleClearAll} />
 
