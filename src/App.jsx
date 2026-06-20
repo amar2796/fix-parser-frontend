@@ -311,7 +311,7 @@ function ExecutionSummaryVisualizer({ result, t }) {
   ];
 
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: t.panelAlt, border: `1px solid ${t.border}`, padding: "12px 20px", borderRadius: "8px", marginBottom: "14px" }}>
+    <div style={{ display: "flex", alignItems: "center", justifySpace: "space-between", background: t.panelAlt, border: `1px solid ${t.border}`, padding: "12px 20px", borderRadius: "8px", marginBottom: "14px" }}>
       <div style={{ display: "flex", flexDirection: "column" }}>
         <span style={{ fontSize: "10px", fontWeight: 700, color: t.textMuted, letterSpacing: "0.5px" }}>EXECUTION SUMMARY</span>
         <span style={{ fontSize: "15px", fontWeight: 700, color: color, marginTop: "2px" }}>{statusText}</span>
@@ -466,7 +466,6 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
 
               return (
                 <div key={i} style={{ display: "flex", flexDirection: "column" }}>
-                  {/* FEATURE: Segmented timeline spacing tracker setup */}
                   {timeDelta && (
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", position: "relative", margin: "6px 0" }}>
                       <div style={{ width: "2px", height: "12px", background: t.border, opacity: 0.5 }} />
@@ -610,7 +609,7 @@ function UnifiedInput({ t, onSingleResult, onLogResult, onClearAll, input, setIn
         {fileName && <div style={{ fontSize: "11px", color: t.textMuted, marginBottom: "8px" }}>📁 {fileName}</div>}
         <textarea value={input} onChange={e => { setInput(e.target.value); setFileName(null); }} rows={5} placeholder="8=FIX.4.4|9=...|35=D|...  — or paste raw production messages containing binary SOH lines" style={{ width: "100%", boxSizing: "border-box", fontFamily: "monospace", fontSize: "12px", padding: "10px 12px", border: `1px solid ${t.border}`, borderRadius: "8px", background: t.inputBg, color: t.text, resize: "vertical" }} onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") handleSubmit(); }} />
         <div style={{ display: "flex", gap: "10px", alignItems: "center", marginTop: "10px" }}>
-          <PrimaryBtn onClick={handleSubmit} loading={loading} disabled={!input.trim()} t={t}>{mode === "log" ? "Parse log →" : "Parse message →"}</PrimaryBtn>
+          <PrimaryBtn onClick={handleSubmit} loading={loading} disabled={!input.trim()} t={t}>Parse Data</PrimaryBtn>
           <span style={{ fontSize: "11px", color: t.textMuted }}>🔒 Privacy First: Messages transit encrypted and are never stored or logged on disk.</span>
         </div>
         {error && <div style={{ marginTop: "10px", padding: "10px 12px", borderRadius: "8px", background: t.redBg, border: `1px solid ${t.red}`, color: t.red, fontSize: "12px" }}>{error}</div>}
