@@ -139,7 +139,7 @@ function Btn({ children, onClick, disabled, style = {}, t }) {
   );
 }
 
-// ─── Anatomy Bar ──────────────────────────────────────────────────────────────
+// ─── Anatomy Bar (With Interactive Hover Tooltip Feature) ────────────────────
 function ThemedAnatomyBar({ result, originalInput, stepIdx = null, onClickField = null, t }) {
   const [hoveredField, setHoveredField] = useState(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
@@ -203,7 +203,7 @@ function ThemedAnatomyBar({ result, originalInput, stepIdx = null, onClickField 
   );
 }
 
-// ─── Field Table ──────────────────────────────────────────────────────────────
+// ─── Field Table (With Smart Repeating Group Segmentation) ─────────────────────
 function FieldTable({ rows, sectionKey, t, onTagClick, filterText }) {
   const sc = t.sections[sectionKey];
   if (!rows || rows.length === 0) return null;
@@ -340,158 +340,53 @@ function ExecutionSummaryVisualizer({ result, t }) {
   );
 }
 
-// ─── Walkthrough ──────────────────────────────────────────────────────────────
-const SPEEDS = { slow: 3000, normal: 1800, fast: 800 };
-
-function Walkthrough({ result, originalInput, t }) {
-  const [step, setStep] = useState(0);
-  const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState("normal");
-  const [fade, setFade] = useState(true);
-  const timer = useRef(null);
-  const seq = result.sequence || [];
-  const cur = seq[step];
-  const sec = cur ? sectionOf(cur, result) : "body";
-  const sc = t.sections[sec];
-
-  useEffect(() => {
-    setFade(false);
-    const id = setTimeout(() => setFade(true), 40);
-    return () => clearTimeout(id);
-  }, [step]);
-
-  useEffect(() => {
-    if (playing) {
-      timer.current = setInterval(() => {
-        setStep(s => { if (s >= seq.length - 1) { setPlaying(false); return s; } return s + 1; });
-      }, SPEEDS[speed]);
-    } else clearInterval(timer.current);
-    return () => clearInterval(timer.current);
-  }, [playing, speed, seq.length]);
-
-  if (!cur) return null;
-
+function PrimaryBtn({ children, onClick, disabled, loading, t, style = {} }) {
   return (
-    <div>
-      <ThemedAnatomyBar result={result} originalInput={originalInput} stepIdx={step} onClickField={i => { setPlaying(false); setStep(i); }} t={t} />
-
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "12px 0" }}>
-        <span style={{ fontSize: "12px", color: t.textMuted }}>
-          Field <strong style={{ color: t.text }}>{step + 1}</strong> of {seq.length}
-        </span>
-        <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-          <select value={speed} onChange={e => setSpeed(e.target.value)} style={{
-            padding: "4px 8px", borderRadius: "6px", fontSize: "12px",
-            border: `1px solid ${t.border}`, background: t.panel, color: t.text,
-          }}>
-            <option value="slow">Slow</option>
-            <option value="normal">Normal</option>
-            <option value="fast">Fast</option>
-          </select>
-          <Btn onClick={() => { if (step >= seq.length - 1) setStep(0); setPlaying(p => !p); }}
-            style={{ background: playing ? t.red : t.green, color: "#fff", border: "none" }} t={t}>
-            {playing ? "⏸" : "▶"}
-          </Btn>
-          <Btn onClick={() => { setPlaying(false); setStep(s => Math.max(s - 1, 0)); }} disabled={step === 0} t={t}>←</Btn>
-          <Btn onClick={() => { setPlaying(false); setStep(s => Math.min(s + 1, seq.length - 1)); }} disabled={step === seq.length - 1} t={t}>→</Btn>
-        </div>
-      </div>
-
-      <div style={{ height: "3px", background: t.border, borderRadius: "2px", marginBottom: "16px" }}>
-        <div style={{ height: "100%", borderRadius: "2px", background: sc.border, width: `${((step + 1) / seq.length) * 100}%`, transition: "width 0.3s ease" }} />
-      </div>
-
-      <div style={{
-        border: `1px solid ${sc.border}`, borderRadius: "10px", padding: "20px",
-        background: sc.bg, opacity: fade ? 1 : 0,
-        transform: fade ? "translateY(0)" : "translateY(4px)", transition: "opacity 0.2s, transform 0.2s",
-      }}>
-        <div style={{ fontSize: "10px", fontWeight: 700, color: sc.border, textTransform: "uppercase", letterSpacing: "1px", marginBottom: "12px" }}>
-          {sc.label} SECTION{cur.isGroupStart ? ` · ENTRY #${cur.groupIndex + 1}` : ""}
-        </div>
-        <div style={{ display: "flex", gap: "32px", flexWrap: "wrap", marginBottom: "16px" }}>
-          <div>
-            <div style={{ fontSize: "11px", color: t.textMuted, marginBottom: "2px" }}>TAG</div>
-            <div style={{ fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace", fontSize: "32px", fontWeight: 700, color: t.text }}>{cur.tag}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: "11px", color: t.textMuted, marginBottom: "2px" }}>FIELD NAME</div>
-            <div style={{ fontSize: "22px", fontWeight: 700, color: t.text }}>{cur.name}</div>
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: "24px", flexWrap: "wrap", marginBottom: "16px" }}>
-          <div>
-            <div style={{ fontSize: "11px", color: t.textMuted, marginBottom: "4px" }}>RAW VALUE</div>
-            <code style={{ fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace", fontSize: "16px", color: sc.text, background: "transparent" }}>{cur.raw}</code>
-          </div>
-          <div>
-            <div style={{ fontSize: "11px", color: t.textMuted, marginBottom: "4px" }}>MEANING</div>
-            <span style={{ fontSize: "16px", color: t.text, fontWeight: 500 }}>{cur.meaning}</span>
-          </div>
-        </div>
-        <div style={{ borderLeft: `3px solid ${sc.border}`, paddingLeft: "12px", padding: "10px 14px", background: t.panelAlt, borderRadius: "0 8px 8px 0", marginBottom: "10px" }}>
-          <div style={{ fontSize: "10px", fontWeight: 700, color: sc.border, letterSpacing: "0.8px", marginBottom: "4px" }}>WHY THIS MATTERS</div>
-          <div style={{ fontSize: "13px", color: t.textMuted, lineHeight: 1.6 }}>{cur.why}</div>
-        </div>
-      </div>
-    </div>
+    <button onClick={onClick} disabled={disabled || loading} style={{
+      padding: "8px 20px", borderRadius: "8px", fontSize: "13px", fontWeight: 600,
+      border: "none", cursor: disabled || loading ? "default" : "pointer",
+      background: disabled || loading ? t.textFaint : t.accent,
+      color: "#fff", transition: "opacity 0.15s", ...style,
+    }}>{loading ? "Processing…" : children}</button>
   );
 }
 
-// ─── Tag Panel ───────────────────────────────────────────────────────────────
-function TagPanel({ field, onClose, t }) {
-  if (!field) return null;
+function Card({ children, t, style = {} }) {
   return (
     <div style={{
-      position: "fixed", top: 0, right: 0, bottom: 0, width: "380px",
-      background: t.panel, borderLeft: `1px solid ${t.border}`,
-      boxShadow: t.shadowMd, zIndex: 200, display: "flex", flexDirection: "column",
-    }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", borderBottom: `1px solid ${t.border}` }}>
-        <span style={{ fontSize: "13px", fontWeight: 600, color: t.text }}>Tag Reference</span>
-        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: t.textMuted, fontSize: "20px" }}>×</button>
-      </div>
-      <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
-        <div style={{ display: "flex", gap: "16px", alignItems: "baseline", marginBottom: "20px" }}>
-          <span style={{ fontFamily: "monospace", fontSize: "40px", fontWeight: 700, color: t.accent }}>{field.tag}</span>
-          <span style={{ fontSize: "22px", fontWeight: 700, color: t.text }}>{field.name}</span>
-        </div>
-        {field.why && (
-          <div style={{ borderLeft: `3px solid ${t.accent}`, padding: "10px 14px", background: t.panelAlt, borderRadius: "0 8px 8px 0" }}>
-            <div style={{ fontSize: "10px", fontWeight: 700, color: t.accent }}>WHY THIS MATTERS</div>
-            <div style={{ fontSize: "13px", color: t.textMuted, marginTop: "4px" }}>{field.why}</div>
-          </div>
-        )}
-      </div>
-    </div>
+      background: t.panel, border: `1px solid ${t.border}`,
+      borderRadius: "10px", overflow: "hidden", ...style,
+    }}>{children}</div>
   );
 }
 
-// ─── Header Tag Search ────────────────────────────────────────────────────────
-function HeaderTagSearch({ t, onResult }) {
-  const [query, setQuery] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const doSearch = useCallback(async (tagNum) => {
-    if (!/^\d+$/.test(String(tagNum).trim())) return;
-    setLoading(true);
-    try {
-      const syn = `8=FIX.4.4|9=10|35=0|${tagNum}=X|10=000|`;
-      const res = await fetch(API, { method: "POST", headers: { "Content-Type": "text/plain" }, body: syn });
-      const d = await res.json();
-      const f = d.sequence ? d.sequence.find(f => String(f.tag) === String(tagNum)) : null;
-      if (f) onResult(f);
-    } catch { /* silent */ }
-    finally { setLoading(false); }
-  }, [onResult]);
-
+function Badge({ text, t }) {
+  const s = badgeFor(text, t);
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-      <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-        <span style={{ position: "absolute", left: "10px", fontSize: "12px", color: t.textFaint }}>⌗</span>
-        <input value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === "Enter") doSearch(query); }} placeholder="Tag lookup…" style={{ paddingLeft: "28px", height: "32px", borderRadius: "6px", fontSize: "12px", width: "140px", border: `1px solid ${t.border}`, background: t.inputBg, color: t.text, outline: "none" }} />
+    <span style={{
+      display: "inline-block", padding: "2px 8px", borderRadius: "20px",
+      fontSize: "11px", fontWeight: 600, letterSpacing: "0.3px",
+      background: s.bg, color: s.fg, border: `1px solid ${s.border}`, whiteSpace: "nowrap",
+    }}>{text}</span>
+  );
+}
+
+function ValidationBanner({ result, t }) {
+  const ok = result.isValid;
+  return (
+    <div style={{
+      padding: "10px 16px", borderRadius: "8px", marginBottom: "14px",
+      background: ok ? t.greenBg : t.redBg,
+      border: `1px solid ${ok ? t.green : t.red}`,
+      color: ok ? t.green : t.red,
+    }}>
+      <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: !ok && result.validationErrors?.length ? "6px" : 0 }}>
+        {ok ? "✓ Valid" : "✗ Validation errors"}{" "}
+        <span style={{ fontWeight: 400, color: t.textMuted }}>· {result.msgTypeName}</span>
       </div>
-      <button onClick={() => doSearch(query)} style={{ height: "32px", padding: "0 12px", borderRadius: "6px", fontSize: "12px", background: t.accentBg, color: t.accent, border: `1px solid ${t.accent}`, cursor: "pointer" }}>Look up</button>
+      {!ok && result.validationErrors?.map((e, i) => (
+        <div key={i} style={{ fontSize: "12px", marginTop: "3px" }}>· {e}</div>
+      ))}
     </div>
   );
 }
@@ -571,7 +466,7 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
 
               return (
                 <div key={i} style={{ display: "flex", flexDirection: "column" }}>
-                  {/* FEATURE: Highly Visual Segmented Micro-latency Line Tracker */}
+                  {/* FEATURE: Segmented timeline spacing tracker setup */}
                   {timeDelta && (
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", position: "relative", margin: "6px 0" }}>
                       <div style={{ width: "2px", height: "12px", background: t.border, opacity: 0.5 }} />
@@ -588,7 +483,7 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
                       padding: "12px 14px", cursor: "pointer", borderBottom: `1px solid ${t.borderSub}`, 
                       borderLeft: `4px solid ${isSel ? t.accent : isRel ? t.yellow : "transparent"}`, 
                       background: isSel ? t.accentBg : isRel ? t.yellowBg : "transparent",
-                      borderRadius: "6px", margin: "2px 6px", boxYizing: "border-box",
+                      borderRadius: "6px", margin: "2px 6px", boxSizing: "border-box",
                       boxShadow: isSel ? t.shadow : "none", transition: "all 0.15s ease"
                     }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
