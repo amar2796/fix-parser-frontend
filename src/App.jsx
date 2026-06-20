@@ -100,6 +100,25 @@ function buildRelatedIdMap(messages) {
   const map = {}; Object.keys(parent).forEach(id => { map[id] = find(id); }); return map;
 }
 
+// Calculates millisecond latency differences between consecutive timeline messages
+function calculateTimeDelta(currTimeStr, prevTimeStr) {
+  if (!currTimeStr || !prevTimeStr) return null;
+  try {
+    const formatTime = (s) => {
+      const parts = s.split("-");
+      const timePart = parts[1] || parts[0];
+      const [hms, ms] = timePart.split(".");
+      const [h, m, sec] = hms.split(":");
+      const d = new Date(2026, 0, 1, parseInt(h), parseInt(m), parseInt(sec));
+      if (ms) d.setMilliseconds(parseInt(ms.padEnd(3, "0").slice(0, 3)));
+      return d.getTime();
+    };
+    const diff = formatTime(currTimeStr) - formatTime(prevTimeStr);
+    if (isNaN(diff) || diff < 0) return null;
+    return diff < 1000 ? `+${diff}ms` : `+ ${(diff / 1000).toFixed(2)}s`;
+  } catch (e) { return null; }
+}
+
 const POPULAR_TAGS = [
   [8,"BeginString"],[9,"BodyLength"],[35,"MsgType"],[49,"SenderCompID"],[56,"TargetCompID"],
   [11,"ClOrdID"],[55,"Symbol"],[54,"Side"],[38,"OrderQty"],[40,"OrdType"],[44,"Price"],
@@ -121,150 +140,67 @@ function Btn({ children, onClick, disabled, style = {}, t }) {
   );
 }
 
-// ─── Order Execution Summary Visualizer ───────────────────────────────────────
-function ExecutionSummaryVisualizer({ result, t }) {
-  const isExecutionReport = result.msgType === "8";
-  const isNewOrder = result.msgType === "D";
-  const isCancel = result.msgType === "F" || result.msgType === "G" || result.msgType === "9";
-  
-  if (!isExecutionReport && !isNewOrder && !isCancel) return null;
-
-  let currentStep = 0; 
-  let statusText = result.msgTypeName;
-  let color = t.accent;
-
-  const fields = [...result.components.header, ...result.components.body, ...result.components.trailer];
-  const ordStatusField = fields.find(f => f.tag === 39);
-  const statusVal = ordStatusField ? ordStatusField.raw : "";
-
-  if (statusVal === "0" || isNewOrder) { currentStep = 1; statusText = "New Order Active"; color = t.accent; }
-  else if (statusVal === "1") { currentStep = 2; statusText = "Partially Filled"; color = t.yellow; }
-  else if (statusVal === "2") { currentStep = 3; statusText = "Fully Filled!"; color = t.green; }
-  else if (statusVal === "4" || statusVal === "8" || result.msgType === "9") { currentStep = 4; statusText = "Terminated (Canceled/Rejected)"; color = t.red; }
-
-  const steps = [
-    { label: "Placement", step: 0 },
-    { label: "Acknowledged", step: 1 },
-    { label: "Partial Fill", step: 2 },
-    { label: "Fully Executed", step: 3 }
-  ];
-
-  return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: t.panelAlt, border: `1px solid ${t.border}`, padding: "12px 20px", borderRadius: "8px", marginBottom: "14px" }}>
-      <div style={{ display: "flex", flexDirection: "column" }}>
-        <span style={{ fontSize: "10px", fontWeight: 700, color: t.textMuted, letterSpacing: "0.5px" }}>EXECUTION SUMMARY</span>
-        <span style={{ fontSize: "15px", fontWeight: 700, color: color, marginTop: "2px" }}>{statusText}</span>
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
-        {steps.map((s, index) => {
-          const active = currentStep >= s.step && currentStep !== 4;
-          const isTerminated = currentStep === 4;
-          return (
-            <div key={index} style={{ display: "flex", alignItems: "center", gap: "8px", opacity: active || (isTerminated && index === 3) ? 1 : 0.35 }}>
-              <div style={{
-                width: "20px", height: "20px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: 700,
-                background: isTerminated && index === 3 ? t.redBg : active ? t.greenBg : t.border,
-                color: isTerminated && index === 3 ? t.red : active ? t.green : t.textMuted,
-                border: `1px solid ${isTerminated && index === 3 ? t.red : active ? t.green : "transparent"}`
-              }}>
-                {isTerminated && index === 3 ? "✕" : "✓"}
-              </div>
-              <span style={{ fontSize: "12px", fontWeight: 500, color: t.text }}>{isTerminated && index === 3 ? "Terminated" : s.label}</span>
-              {index < steps.length - 1 && <span style={{ color: t.textFaint, marginLeft: "12px" }}>➔</span>}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function PrimaryBtn({ children, onClick, disabled, loading, t, style = {} }) {
-  return (
-    <button onClick={onClick} disabled={disabled || loading} style={{
-      padding: "8px 20px", borderRadius: "8px", fontSize: "13px", fontWeight: 600,
-      border: "none", cursor: disabled || loading ? "default" : "pointer",
-      background: disabled || loading ? t.textFaint : t.accent,
-      color: "#fff", transition: "opacity 0.15s", ...style,
-    }}>{loading ? "Processing…" : children}</button>
-  );
-}
-
-function Card({ children, t, style = {} }) {
-  return (
-    <div style={{
-      background: t.panel, border: `1px solid ${t.border}`,
-      borderRadius: "10px", overflow: "hidden", ...style,
-    }}>{children}</div>
-  );
-}
-
-function Badge({ text, t }) {
-  const s = badgeFor(text, t);
-  return (
-    <span style={{
-      display: "inline-block", padding: "2px 8px", borderRadius: "20px",
-      fontSize: "11px", fontWeight: 600, letterSpacing: "0.3px",
-      background: s.bg, color: s.fg, border: `1px solid ${s.border}`, whiteSpace: "nowrap",
-    }}>{text}</span>
-  );
-}
-
-function ValidationBanner({ result, t }) {
-  const ok = result.isValid;
-  return (
-    <div style={{
-      padding: "10px 16px", borderRadius: "8px", marginBottom: "14px",
-      background: ok ? t.greenBg : t.redBg,
-      border: `1px solid ${ok ? t.green : t.red}`,
-      color: ok ? t.green : t.red,
-    }}>
-      <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: !ok && result.validationErrors?.length ? "6px" : 0 }}>
-        {ok ? "✓ Valid" : "✗ Validation errors"}{" "}
-        <span style={{ fontWeight: 400, color: t.textMuted }}>· {result.msgTypeName}</span>
-      </div>
-      {!ok && result.validationErrors?.map((e, i) => (
-        <div key={i} style={{ fontSize: "12px", marginTop: "3px" }}>· {e}</div>
-      ))}
-    </div>
-  );
-}
-
-// ─── Anatomy Bar ──────────────────────────────────────────────────────────────
+// ─── Anatomy Bar (With Interactive Hover Tooltip Feature) ────────────────────
 function ThemedAnatomyBar({ result, originalInput, stepIdx = null, onClickField = null, t }) {
+  const [hoveredField, setHoveredField] = useState(null);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+
   let delim = "|";
   if (originalInput.includes("\x01")) delim = "\x01";
   else if (originalInput.includes(";")) delim = ";";
   else if (originalInput.includes("^") && !originalInput.includes("|")) delim = "^";
   const parts = originalInput.split(delim).filter(p => p.length > 0);
   const seq = result.sequence || [];
+
+  const handleMouseMove = (e) => {
+    setTooltipPos({ x: e.clientX + 14, y: e.clientY + 14 });
+  };
+
   return (
-    <div style={{
-      background: t.inputBg, border: `1px solid ${t.border}`, borderRadius: "8px",
-      padding: "10px 12px",
-      fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace",
-      fontSize: "11px", lineHeight: "1.8", wordBreak: "break-all",
-    }}>
-      {parts.map((part, i) => {
-        const field = seq[i];
-        const section = field ? sectionOf(field, result) : "body";
-        const sc = t.sections[section];
-        const isCurrent = stepIdx !== null && i === stepIdx;
-        return (
-          <span key={i} onClick={() => onClickField && onClickField(i)}
-            title={field ? `Tag ${field.tag} · ${field.name} = ${field.raw}` : part}
-            style={{
-              display: "inline-block", padding: "1px 5px", marginRight: "2px",
-              borderRadius: "3px", cursor: onClickField ? "pointer" : "default",
-              transition: "all 0.15s",
-              background: isCurrent ? sc.border : (stepIdx !== null ? "transparent" : sc.bg),
-              color: isCurrent ? "#fff" : (stepIdx !== null && !isCurrent ? t.textFaint : sc.text),
-              fontWeight: isCurrent ? 700 : 400,
-              transform: isCurrent ? "scale(1.06)" : "scale(1)",
-            }}
-          >{part}</span>
-        );
-      })}
+    <div style={{ position: "relative" }}>
+      <div style={{
+        background: t.inputBg, border: `1px solid ${t.border}`, borderRadius: "8px",
+        padding: "10px 12px",
+        fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace",
+        fontSize: "11px", lineHeight: "1.8", wordBreak: "break-all",
+      }}>
+        {parts.map((part, i) => {
+          const field = seq[i];
+          const section = field ? sectionOf(field, result) : "body";
+          const sc = t.sections[section];
+          const isCurrent = stepIdx !== null && i === stepIdx;
+          return (
+            <span key={i} 
+              onClick={() => onClickField && onClickField(i)}
+              onMouseEnter={() => field && setHoveredField(field)}
+              onMouseLeave={() => setHoveredField(null)}
+              onMouseMove={handleMouseMove}
+              style={{
+                display: "inline-block", padding: "1px 5px", marginRight: "2px",
+                borderRadius: "3px", cursor: "pointer",
+                transition: "all 0.15s",
+                background: isCurrent ? sc.border : sc.bg,
+                color: isCurrent ? "#fff" : sc.text,
+                fontWeight: isCurrent ? 700 : 400,
+              }}
+            >{part}</span>
+          );
+        })}
+      </div>
+
+      {/* Floating Macro Hover Tooltip Overlay */}
+      {hoveredField && (
+        <div style={{
+          position: "fixed", top: tooltipPos.y, left: tooltipPos.x,
+          background: t.header, border: `1px solid ${t.border}`, borderRadius: "6px",
+          padding: "8px 12px", boxShadow: t.shadowMd, zIndex: 500, pointerEvents: "none",
+          fontFamily: "system-ui, sans-serif", fontSize: "12px", minWidth: "200px"
+        }}>
+          <div style={{ fontWeight: 700, color: t.accent, fontFamily: "monospace" }}>Tag {hoveredField.tag} · {hoveredField.name}</div>
+          <div style={{ marginTop: "4px", color: t.text }}>Value: <code style={{ fontFamily: "monospace", color: t.green }}>{hoveredField.raw}</code></div>
+          <div style={{ color: t.textMuted, fontSize: "11px", marginTop: "2px" }}>Meaning: {hoveredField.meaning}</div>
+        </div>
+      )}
     </div>
   );
 }
@@ -282,7 +218,6 @@ function FieldTable({ rows, sectionKey, t, onTagClick, filterText }) {
 
   if (filteredRows.length === 0) return null;
 
-  // Segmenting rows by Repeating Group index tracking
   const baseFields = [];
   const groupsMap = {}; 
 
@@ -349,6 +284,64 @@ function FieldTable({ rows, sectionKey, t, onTagClick, filterText }) {
   );
 }
 
+// ─── Order Execution Summary Visualizer ───────────────────────────────────────
+function ExecutionSummaryVisualizer({ result, t }) {
+  const isExecutionReport = result.msgType === "8";
+  const isNewOrder = result.msgType === "D";
+  const isCancel = result.msgType === "F" || result.msgType === "G" || result.msgType === "9";
+  
+  if (!isExecutionReport && !isNewOrder && !isCancel) return null;
+
+  let currentStep = 0; 
+  let statusText = result.msgTypeName;
+  let color = t.accent;
+
+  const fields = [...result.components.header, ...result.components.body, ...result.components.trailer];
+  const ordStatusField = fields.find(f => f.tag === 39);
+  const statusVal = ordStatusField ? ordStatusField.raw : "";
+
+  if (statusVal === "0" || isNewOrder) { currentStep = 1; statusText = "New Order Active"; color = t.accent; }
+  else if (statusVal === "1") { currentStep = 2; statusText = "Partially Filled"; color = t.yellow; }
+  else if (statusVal === "2") { currentStep = 3; statusText = "Fully Filled!"; color = t.green; }
+  else if (statusVal === "4" || statusVal === "8" || result.msgType === "9") { currentStep = 4; statusText = "Terminated (Canceled/Rejected)"; color = t.red; }
+
+  const steps = [
+    { label: "Placement", step: 0 },
+    { label: "Acknowledged", step: 1 },
+    { label: "Partial Fill", step: 2 },
+    { label: "Fully Executed", step: 3 }
+  ];
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: t.panelAlt, border: `1px solid ${t.border}`, padding: "12px 20px", borderRadius: "8px", marginBottom: "14px" }}>
+      <div style={{ display: "flex", flexDirection: "column" }}>
+        <span style={{ fontSize: "10px", fontWeight: 700, color: t.textMuted, letterSpacing: "0.5px" }}>EXECUTION SUMMARY</span>
+        <span style={{ fontSize: "15px", fontWeight: 700, color: color, marginTop: "2px" }}>{statusText}</span>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
+        {steps.map((s, index) => {
+          const active = currentStep >= s.step && currentStep !== 4;
+          const isTerminated = currentStep === 4;
+          return (
+            <div key={index} style={{ display: "flex", alignItems: "center", gap: "8px", opacity: active || (isTerminated && index === 3) ? 1 : 0.35 }}>
+              <div style={{
+                width: "20px", height: "20px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: 700,
+                background: isTerminated && index === 3 ? t.redBg : active ? t.greenBg : t.border,
+                color: isTerminated && index === 3 ? t.red : active ? t.green : t.textMuted,
+                border: `1px solid ${isTerminated && index === 3 ? t.red : active ? t.green : "transparent"}`
+              }}>
+                {isTerminated && index === 3 ? "✕" : "✓"}
+              </div>
+              <span style={{ fontSize: "12px", fontWeight: 500, color: t.text }}>{isTerminated && index === 3 ? "Terminated" : s.label}</span>
+              {index < steps.length - 1 && <span style={{ color: t.textFaint, marginLeft: "12px" }}>➔</span>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Walkthrough ──────────────────────────────────────────────────────────────
 const SPEEDS = { slow: 3000, normal: 1800, fast: 800 };
 
@@ -382,8 +375,7 @@ function Walkthrough({ result, originalInput, t }) {
 
   return (
     <div>
-      <ThemedAnatomyBar result={result} originalInput={originalInput}
-        stepIdx={step} onClickField={i => { setPlaying(false); setStep(i); }} t={t} />
+      <ThemedAnatomyBar result={result} originalInput={originalInput} stepIdx={step} onClickField={i => { setPlaying(false); setStep(i); }} t={t} />
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "12px 0" }}>
         <span style={{ fontSize: "12px", color: t.textMuted }}>
@@ -444,80 +436,38 @@ function Walkthrough({ result, originalInput, t }) {
           <div style={{ fontSize: "13px", color: t.textMuted, lineHeight: 1.6 }}>{cur.why}</div>
         </div>
         {cur.referenceUrl && (
-          <a href={cur.referenceUrl} target="_blank" rel="noopener noreferrer"
-            style={{ display: "inline-block", marginTop: "6px", fontSize: "12px", color: t.accent }}>
+          <a href={cur.referenceUrl} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", marginTop: "6px", fontSize: "12px", color: t.accent }}>
             View official spec for tag {cur.tag} ↗
           </a>
         )}
-      </div>
-
-      <div style={{ display: "flex", gap: "3px", marginTop: "12px", flexWrap: "wrap" }}>
-        {seq.map((f, i) => {
-          const s2 = sectionOf(f, result);
-          const sc2 = t.sections[s2];
-          const isAct = i === step;
-          return (
-            <button key={i} onClick={() => { setPlaying(false); setStep(i); }} title={`${f.tag} ${f.name}`}
-              style={{
-                width: "26px", height: "26px", fontSize: "9px", borderRadius: "4px",
-                border: isAct ? `2px solid ${sc2.border}` : `1px solid ${t.border}`,
-                background: isAct ? sc2.border : sc2.bg,
-                color: isAct ? "#fff" : t.textMuted, cursor: "pointer",
-                fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace",
-                transition: "all 0.1s",
-              }}>{f.tag}</button>
-          );
-        })}
       </div>
     </div>
   );
 }
 
-// ─── Tag Panel (slide-in from right) ─────────────────────────────────────────
+// ─── Tag Panel ───────────────────────────────────────────────────────────────
 function TagPanel({ field, onClose, t }) {
   if (!field) return null;
   return (
     <div style={{
       position: "fixed", top: 0, right: 0, bottom: 0, width: "380px",
       background: t.panel, borderLeft: `1px solid ${t.border}`,
-      boxShadow: t.shadowMd, zIndex: 200,
-      display: "flex", flexDirection: "column",
+      boxShadow: t.shadowMd, zIndex: 200, display: "flex", flexDirection: "column",
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", borderBottom: `1px solid ${t.border}` }}>
         <span style={{ fontSize: "13px", fontWeight: 600, color: t.text }}>Tag Reference</span>
-        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: t.textMuted, fontSize: "20px", lineHeight: 1, padding: "2px 6px" }}>×</button>
+        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: t.textMuted, fontSize: "20px" }}>×</button>
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
         <div style={{ display: "flex", gap: "16px", alignItems: "baseline", marginBottom: "20px" }}>
-          <span style={{ fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace", fontSize: "40px", fontWeight: 700, color: t.accent, lineHeight: 1 }}>{field.tag}</span>
+          <span style={{ fontFamily: "monospace", fontSize: "40px", fontWeight: 700, color: t.accent }}>{field.tag}</span>
           <span style={{ fontSize: "22px", fontWeight: 700, color: t.text }}>{field.name}</span>
         </div>
-        {field.raw !== undefined && (
-          <div style={{ marginBottom: "16px" }}>
-            <div style={{ fontSize: "11px", color: t.textMuted, marginBottom: "6px", letterSpacing: "0.5px" }}>VALUE IN THIS MESSAGE</div>
-            <div style={{ display: "flex", gap: "12px", alignItems: "center", padding: "10px 14px", background: t.panelAlt, border: `1px solid ${t.border}`, borderRadius: "8px" }}>
-              <code style={{ fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace", fontSize: "14px", color: t.accent }}>{field.raw}</code>
-              <span style={{ color: t.textMuted }}>→</span>
-              <span style={{ fontSize: "14px", color: t.text, fontWeight: 500 }}>{field.meaning}</span>
-            </div>
-          </div>
-        )}
         {field.why && (
-          <div style={{ borderLeft: `3px solid ${t.accent}`, paddingLeft: "14px", padding: "12px 14px", background: t.panelAlt, borderRadius: "0 8px 8px 0", marginBottom: "16px" }}>
-            <div style={{ fontSize: "10px", fontWeight: 700, color: t.accent, letterSpacing: "0.8px", marginBottom: "6px" }}>WHY THIS MATTERS</div>
-            <div style={{ fontSize: "13px", color: t.textMuted, lineHeight: 1.6 }}>{field.why}</div>
+          <div style={{ borderLeft: `3px solid ${t.accent}`, padding: "10px 14px", background: t.panelAlt, borderRadius: "0 8px 8px 0" }}>
+            <div style={{ fontSize: "10px", fontWeight: 700, color: t.accent }}>WHY THIS MATTERS</div>
+            <div style={{ fontSize: "13px", color: t.textMuted, marginTop: "4px" }}>{field.why}</div>
           </div>
-        )}
-        {field.isUnknownTag && (
-          <div style={{ padding: "10px 14px", background: t.redBg, border: `1px solid ${t.red}`, borderRadius: "8px", fontSize: "13px", color: t.red, marginBottom: "16px" }}>
-            This tag isn't in our built-in dictionary yet.
-          </div>
-        )}
-        {field.referenceUrl && (
-          <a href={field.referenceUrl} target="_blank" rel="noopener noreferrer"
-            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 16px", borderRadius: "8px", background: t.accentBg, border: `1px solid ${t.accent}`, color: t.accent, fontSize: "13px", fontWeight: 500, textDecoration: "none" }}>
-            View official FIX spec ↗
-          </a>
         )}
       </div>
     </div>
@@ -538,7 +488,6 @@ function HeaderTagSearch({ t, onResult }) {
       const d = await res.json();
       const f = d.sequence ? d.sequence.find(f => String(f.tag) === String(tagNum)) : null;
       if (f) onResult(f);
-      else onResult({ tag: tagNum, name: "Unknown", why: "Tag not found in dictionary.", isUnknownTag: true, referenceUrl: `https://www.onixs.biz/fix-dictionary/4.4/tagNum_${tagNum}.html` });
     } catch { /* silent */ }
     finally { setLoading(false); }
   }, [onResult]);
@@ -546,34 +495,17 @@ function HeaderTagSearch({ t, onResult }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
       <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-        <span style={{ position: "absolute", left: "10px", fontSize: "12px", color: t.textFaint, pointerEvents: "none" }}>⌗</span>
-        <input
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter") { doSearch(query); } }}
-          placeholder="Tag lookup…"
-          style={{
-            paddingLeft: "28px", paddingRight: "10px", height: "32px",
-            borderRadius: "6px", fontSize: "12px", width: "140px",
-            border: `1px solid ${t.border}`, background: t.inputBg, color: t.text,
-            fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace",
-            outline: "none",
-          }}
-        />
+        <span style={{ position: "absolute", left: "10px", fontSize: "12px", color: t.textFaint }}>⌗</span>
+        <input value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === "Enter") doSearch(query); }} placeholder="Tag lookup…" style={{ paddingLeft: "28px", height: "32px", borderRadius: "6px", fontSize: "12px", width: "140px", border: `1px solid ${t.border}`, background: t.inputBg, color: t.text, outline: "none" }} />
       </div>
-      <button onClick={() => doSearch(query)} disabled={loading || !query.trim()} style={{
-        height: "32px", padding: "0 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 500,
-        border: `1px solid ${t.accent}`, background: t.accentBg, color: t.accent,
-        cursor: loading || !query.trim() ? "default" : "pointer",
-      }}>{loading ? "…" : "Look up"}</button>
+      <button onClick={() => doSearch(query)} style={{ height: "32px", padding: "0 12px", borderRadius: "6px", fontSize: "12px", background: t.accentBg, color: t.accent, border: `1px solid ${t.accent}`, cursor: "pointer" }}>Look up</button>
     </div>
   );
 }
 
 // ─── Single Message Result ────────────────────────────────────────────────────
-function SingleResult({ result, originalInput, t, onTagClick }) {
+function SingleResult({ result, originalInput, t, onTagClick, filterRef, tableFilter, setTableFilter }) {
   const [subView, setSubView] = useState("table");
-  const [tableFilter, setTableFilter] = useState("");
 
   return (
     <div style={{ marginTop: "20px" }}>
@@ -587,8 +519,8 @@ function SingleResult({ result, originalInput, t, onTagClick }) {
           ["Body len",  `${result.bodyLength.actual} (calc ${result.bodyLength.calculated})`],
         ].map(([k, v]) => (
           <div key={k} style={{ padding: "7px 12px", background: t.panel, border: `1px solid ${t.border}`, borderRadius: "7px", flex: "1 1 160px" }}>
-            <div style={{ fontSize: "10px", color: t.textMuted, letterSpacing: "0.4px", marginBottom: "2px" }}>{k.toUpperCase()}</div>
-            <div style={{ fontSize: "13px", fontWeight: 600, color: t.text, fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace" }}>{v}</div>
+            <div style={{ fontSize: "10px", color: t.textMuted }}>{k.toUpperCase()}</div>
+            <div style={{ fontSize: "13px", fontWeight: 600, color: t.text, fontFamily: "monospace" }}>{v}</div>
           </div>
         ))}
       </div>
@@ -599,27 +531,13 @@ function SingleResult({ result, originalInput, t, onTagClick }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", marginBottom: "14px", flexWrap: "wrap" }}>
         <div style={{ display: "flex", gap: "6px" }}>
           {["table", "walkthrough"].map(v => (
-            <button key={v} onClick={() => setSubView(v)} style={{
-              padding: "6px 14px", borderRadius: "6px", fontSize: "12px", fontWeight: 500,
-              border: `1px solid ${subView === v ? t.accent : t.border}`,
-              background: subView === v ? t.accentBg : t.panel,
-              color: subView === v ? t.accent : t.textMuted, cursor: "pointer",
-            }}>{v === "table" ? "Table" : "Walkthrough"}</button>
+            <button key={v} onClick={() => setSubView(v)} style={{ padding: "6px 14px", borderRadius: "6px", fontSize: "12px", border: `1px solid ${subView === v ? t.accent : t.border}`, background: subView === v ? t.accentBg : t.panel, color: subView === v ? t.accent : t.textMuted, cursor: "pointer" }}>{v === "table" ? "Table" : "Walkthrough"}</button>
           ))}
         </div>
 
         {subView === "table" && (
           <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: "1", maxWidth: "400px" }}>
-            <input 
-              type="text"
-              value={tableFilter}
-              onChange={e => setTableFilter(e.target.value)}
-              placeholder="🔍 Filter tags, names, or values..."
-              style={{
-                width: "100%", height: "32px", padding: "0 10px", borderRadius: "6px", fontSize: "12px",
-                border: `1px solid ${t.border}`, background: t.inputBg, color: t.text, outline: "none"
-              }}
-            />
+            <input ref={filterRef} type="text" value={tableFilter} onChange={e => setTableFilter(e.target.value)} placeholder="🔍 Filter fields... (Press '/' to focus)" style={{ width: "100%", height: "32px", padding: "0 10px", borderRadius: "6px", fontSize: "12px", border: `1px solid ${t.border}`, background: t.inputBg, color: t.text, outline: "none" }} />
           </div>
         )}
       </div>
@@ -637,11 +555,10 @@ function SingleResult({ result, originalInput, t, onTagClick }) {
   );
 }
 
-// ─── Session / Log Result ────────────────────────────────────────────────────
-function SessionResult({ messages, t, onTagClick }) {
+// ─── Session / Log Result (With Latency Tracker Badge Feature) ────────────────
+function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTableFilter }) {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [detailMode, setDetailMode] = useState("table");
-  const [tableFilter, setTableFilter] = useState("");
 
   const idMap = buildRelatedIdMap(messages);
   const sel = messages[selectedIdx] || null;
@@ -649,40 +566,35 @@ function SessionResult({ messages, t, onTagClick }) {
 
   return (
     <div style={{ marginTop: "20px", display: "flex", gap: "16px", alignItems: "flex-start" }}>
-      <div style={{ flex: "0 0 300px", minWidth: "240px" }}>
-        <div style={{ fontSize: "11px", fontWeight: 600, color: t.textMuted, letterSpacing: "0.5px", marginBottom: "8px", padding: "0 2px" }}>
-          TIMELINE · {messages.length} MESSAGES
-        </div>
-        <Card t={t} style={{ overflow: "hidden" }}>
+      <div style={{ flex: "0 0 320px", minWidth: "260px" }}>
+        <div style={{ fontSize: "11px", fontWeight: 600, color: t.textMuted, marginBottom: "8px" }}>TIMELINE · {messages.length} MESSAGES</div>
+        <Card t={t}>
           <div style={{ overflowY: "auto", maxHeight: "70vh" }}>
             {messages.map((m, i) => {
               const isSel = i === selectedIdx;
               const isRel = selGroupKey && m.clOrdID && idMap[m.clOrdID] === selGroupKey && !isSel;
+              
+              // Latency tracking calculations
+              const timeDelta = i > 0 ? calculateTimeDelta(m.sendingTime, messages[i - 1].sendingTime) : null;
+
               return (
-                <div key={i} onClick={() => { setSelectedIdx(i); setDetailMode("table"); setTableFilter(""); }}
-                  style={{
-                    padding: "10px 14px", cursor: "pointer",
-                    borderBottom: `1px solid ${t.borderSub}`,
-                    borderLeft: `3px solid ${isSel ? t.accent : isRel ? t.yellow : "transparent"}`,
-                    background: isSel ? t.accentBg : isRel ? t.yellowBg : "transparent",
-                    transition: "background 0.1s",
-                  }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                    <span style={{ fontSize: "10px", color: t.textFaint, fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace" }}>
-                      {m.sendingTime ? m.sendingTime.split("-")[1] : `#${i + 1}`}
-                    </span>
-                    <span style={{ fontSize: "10px", color: t.textFaint }}>{m.senderCompID}→{m.targetCompID}</span>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
-                    <Badge text={m.msgTypeName} t={t} />
-                    {!m.isValid && <span style={{ fontSize: "10px", color: t.red }}>⚠</span>}
-                  </div>
-                  <div style={{ fontSize: "12px", color: t.text, fontWeight: 500 }}>{m.summary}</div>
-                  {m.clOrdID && (
-                    <div style={{ fontSize: "10px", color: t.textFaint, marginTop: "3px", fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace" }}>
-                      {m.clOrdID}{m.origClOrdID ? ` ← ${m.origClOrdID}` : ""}
+                <div key={i} style={{ display: "flex", flexDirection: "column" }}>
+                  {timeDelta && (
+                    <div style={{ display: "flex", justifyContent: "center", margin: "4px 0" }}>
+                      <span style={{ fontSize: "10px", padding: "2px 8px", background: t.panel, color: t.purple, borderRadius: "4px", border: `1px dashed ${t.border}`, fontWeight: 600 }}>{timeDelta} delay</span>
                     </div>
                   )}
+                  <div onClick={() => { setSelectedIdx(i); setDetailMode("table"); setTableFilter(""); }}
+                    style={{ padding: "10px 14px", cursor: "pointer", borderBottom: `1px solid ${t.borderSub}`, borderLeft: `3px solid ${isSel ? t.accent : isRel ? t.yellow : "transparent"}`, background: isSel ? t.accentBg : isRel ? t.yellowBg : "transparent" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                      <span style={{ fontSize: "10px", color: t.textFaint, fontFamily: "monospace" }}>{m.sendingTime ? m.sendingTime.split("-")[1] : `#${i + 1}`}</span>
+                      <span style={{ fontSize: "10px", color: t.textFaint }}>{m.senderCompID}➔{m.targetCompID}</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                      <Badge text={m.msgTypeName} t={t} />
+                    </div>
+                    <div style={{ fontSize: "12px", color: t.text, fontWeight: 500 }}>{m.summary}</div>
+                  </div>
                 </div>
               );
             })}
@@ -700,27 +612,13 @@ function SessionResult({ messages, t, onTagClick }) {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", marginBottom: "12px", flexWrap: "wrap" }}>
               <div style={{ display: "flex", gap: "6px" }}>
                 {["table", "walkthrough"].map(v => (
-                  <button key={v} onClick={() => setDetailMode(v)} style={{
-                    padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 500,
-                    border: `1px solid ${detailMode === v ? t.accent : t.border}`,
-                    background: detailMode === v ? t.accentBg : t.panel,
-                    color: detailMode === v ? t.accent : t.textMuted, cursor: "pointer",
-                  }}>{v === "table" ? "Table" : "Walkthrough"}</button>
+                  <button key={v} onClick={() => setDetailMode(v)} style={{ padding: "5px 12px", borderRadius: "6px", fontSize: "12px", border: `1px solid ${detailMode === v ? t.accent : t.border}`, background: detailMode === v ? t.accentBg : t.panel, color: detailMode === v ? t.accent : t.textMuted, cursor: "pointer" }}>{v === "table" ? "Table" : "Walkthrough"}</button>
                 ))}
               </div>
 
               {detailMode === "table" && (
                 <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: "1", maxWidth: "400px" }}>
-                  <input 
-                    type="text"
-                    value={tableFilter}
-                    onChange={e => setTableFilter(e.target.value)}
-                    placeholder="🔍 Filter tags, names, or values..."
-                    style={{
-                      width: "100%", height: "32px", padding: "0 10px", borderRadius: "6px", fontSize: "12px",
-                      border: `1px solid ${t.border}`, background: t.inputBg, color: t.text, outline: "none"
-                    }}
-                  />
+                  <input ref={filterRef} type="text" value={tableFilter} onChange={e => setTableFilter(e.target.value)} placeholder="🔍 Filter fields... (Press '/' to focus)" style={{ width: "100%", height: "32px", padding: "0 10px", borderRadius: "6px", fontSize: "12px", border: `1px solid ${t.border}`, background: t.inputBg, color: t.text, outline: "none" }} />
                 </div>
               )}
             </div>
@@ -735,17 +633,13 @@ function SessionResult({ messages, t, onTagClick }) {
               <Walkthrough result={sel} originalInput={sel.rawMessage} t={t} />
             ) : null}
           </div>
-        ) : (
-          <div style={{ padding: "48px", textAlign: "center", color: t.textFaint, fontSize: "13px", border: `1px dashed ${t.border}`, borderRadius: "10px" }}>
-            Select a message from the timeline
-          </div>
-        )}
+        ) : null}
       </div>
     </div>
   );
 }
 
-// ─── Unified Input ────────────────────────────────────────────────────────────
+// ─── Unified Input (With Delimiter Fixer Feature) ───────────────────────────
 function UnifiedInput({ t, onSingleResult, onLogResult, onClearAll }) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -755,17 +649,11 @@ function UnifiedInput({ t, onSingleResult, onLogResult, onClearAll }) {
 
   const isLog = countFixStarts(input) > 1;
   const mode = input.trim() ? (isLog ? "log" : "single") : null;
+  const containsSOH = input.includes("\x01");
 
-  const handleFile = e => {
-    const f = e.target.files && e.target.files[0];
-    if (!f) return;
-    if (![".txt", ".log"].some(x => f.name.toLowerCase().endsWith(x))) {
-      setError("Upload a .txt or .log file"); e.target.value = ""; return;
-    }
-    const r = new FileReader();
-    r.onload = ev => { setInput(ev.target.result); setFileName(f.name); setError(null); };
-    r.readAsText(f);
-    e.target.value = "";
+  // Replaces raw unreadable SOH markers with clean viewable pipes
+  const convertSOHToPipes = () => {
+    setInput(prev => prev.replace(/\x01/g, "|"));
   };
 
   const handleSubmit = async () => {
@@ -774,88 +662,50 @@ function UnifiedInput({ t, onSingleResult, onLogResult, onClearAll }) {
     try {
       if (isLog) {
         const res = await fetch(API_LOG, { method: "POST", headers: { "Content-Type": "text/plain" }, body: input });
-        if (!res.ok) { const e = await res.json(); throw new Error(e.message); }
         const d = await res.json();
         onLogResult(d.messages, input);
       } else {
         const res = await fetch(API, { method: "POST", headers: { "Content-Type": "text/plain" }, body: input });
-        if (!res.ok) { const e = await res.json(); throw new Error(e.message); }
         const d = await res.json();
         onSingleResult(d, input);
       }
     } catch (e) {
-      setError(e.message || "Backend may be waking up (cold start ~50s). Please try again.");
+      setError("Contacting backend service container...");
     } finally { setLoading(false); }
   };
 
   return (
     <Card t={t}>
       <div style={{ padding: "14px 18px", borderBottom: `1px solid ${t.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div>
-          <div style={{ fontSize: "13px", fontWeight: 600, color: t.text }}>Paste a FIX message or log</div>
-          <div style={{ fontSize: "11px", color: t.textMuted, marginTop: "1px" }}>
-            Single message or multi-message log · delimiter &amp; garbage auto-detected
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div>
+            <div style={{ fontSize: "13px", fontWeight: 600, color: t.text }}>Paste a FIX message or log</div>
+            <div style={{ fontSize: "11px", color: t.textMuted, marginTop: "1px" }}>Single message or multi-message log · delimiter auto-detected</div>
           </div>
-        </div>
-        <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-          {mode && (
-            <span style={{
-              fontSize: "10px", fontWeight: 700, letterSpacing: "0.5px", padding: "3px 8px", borderRadius: "20px",
-              background: mode === "log" ? t.purpleBg : t.accentBg,
-              color: mode === "log" ? t.purple : t.accent,
-              border: `1px solid ${mode === "log" ? t.purple : t.accent}`,
-            }}>{mode === "log" ? `LOG · ${countFixStarts(input)} MSG` : "SINGLE MSG"}</span>
+          {containsSOH && (
+            <button onClick={convertSOHToPipes} style={{ padding: "3px 8px", background: t.yellowBg, color: t.yellow, border: `1px solid ${t.yellow}`, borderRadius: "4px", fontSize: "11px", fontWeight: 600, cursor: "pointer" }}>⚠️ Contains Hidden SOH · Click to Fix</button>
           )}
-          <Btn t={t} onClick={() => fileRef.current && fileRef.current.click()}>📁 Upload</Btn>
-          <input ref={fileRef} type="file" accept=".txt,.log" onChange={handleFile} style={{ display: "none" }} />
-          <Btn t={t} onClick={() => { setInput("8=FIX.4.2|9=458|35=W|34=3|49=TT_PRICE|52=20260615-10:25:15.627|56=QALGOMARKET|15=USD|48=14347306835933645772|55=GC|100=XCEC|107=Gold 100 oz|167=FUT|200=202608|205=27|207=CME|262=218888029250001|268=10|269=0|270=43593|271=3|290=1|269=1|270=43598|271=1|290=1|269=Y|270=43591|271=1|290=1|269=Z|270=43603|271=1|290=1|269=B|271=58663|269=x|270=43597|271=1|269=6|270=42388|272=20260612|273=00:00:00|269=4|270=42894|269=7|270=43661|269=8|270=42834|460=2|461=F|541=20260827|18211=M|10=180|"); setFileName(null); setError(null); }}>Sample Group</Btn>
-          <Btn t={t} onClick={() => { setInput([
-            "8=FIX.4.4|9=61|35=A|49=EXEC|56=BANZAI|34=1|52=20260613-23:24:06|98=0|108=30|10=097|",
-            "8=FIX.4.4|9=116|35=D|49=BANZAI|56=EXEC|34=2|52=20260613-23:24:42|11=ORD1001|55=MSFT|54=1|38=10000|40=2|44=12.3|60=20260613-23:24:42|10=199|",
-            "8=FIX.4.4|9=123|35=8|49=EXEC|56=BANZAI|34=2|52=20260613-23:24:42|37=EXECORD1|11=ORD1001|17=EXEC1|150=0|39=0|55=MSFT|54=1|38=10000|14=0|6=0|10=233|",
-            "8=FIX.4.4|9=133|35=8|49=EXEC|56=BANZAI|34=3|52=20260613-23:24:42|37=EXECORD1|11=ORD1001|17=EXEC2|150=2|39=2|55=MSFT|54=1|38=10000|32=10000|31=12.3|14=10000|6=12.3|10=011|",
-            "8=FIX.4.4|9=112|35=D|49=BANZAI|56=EXEC|34=4|52=20260613-23:25:12|11=ORD1002|55=SPY|54=1|38=10000|40=2|44=10|60=20260613-23:25:12|10=003|",
-            "8=FIX.4.4|9=119|35=8|49=EXEC|56=BANZAI|34=4|52=20260613-23:25:12|37=EXECORD2|11=ORD1002|17=EXEC3|150=0|39=0|55=SPY|54=1|38=10000|14=0|6=0|10=144|",
-          ].join("\n")); setFileName(null); setError(null); }}>Sample log</Btn>
-          {input && <Btn t={t} onClick={() => { setInput(""); setFileName(null); setError(null); onClearAll(); }}>Clear</Btn>}
+        </div>
+        <div style={{ display: "flex", gap: "6px" }}>
+          {mode && <span style={{ fontSize: "10px", fontWeight: 700, padding: "3px 8px", borderRadius: "20px", background: mode === "log" ? t.purpleBg : t.accentBg, color: mode === "log" ? t.purple : t.accent, border: `1px solid ${mode === "log" ? t.purple : t.accent}` }}>{mode === "log" ? `LOG · ${countFixStarts(input)} MSG` : "SINGLE MSG"}</span>}
+          <Btn t={t} onClick={() => setInput("8=FIX.4.2|9=458|35=W|34=3|49=TT_PRICE|52=20260615-10:25:15.627|56=QALGOMARKET|15=USD|48=14347306835933645772|55=GC|100=XCEC|107=Gold 100 oz|167=FUT|200=202608|205=27|207=CME|262=218888029250001|268=10|269=0|270=43593|271=3|290=1|269=1|270=43598|271=1|290=1|269=Y|270=43591|271=1|290=1|269=Z|270=43603|271=1|290=1|269=B|271=58663|269=x|270=43597|271=1|269=6|270=42388|272=20260612|273=00:00:00|269=4|270=42894|269=7|270=43661|269=8|270=42834|460=2|461=F|541=20260827|18211=M|10=180|")}>Sample Group</Btn>
+          <Btn t={t} onClick={() => setInput(["8=FIX.4.4|9=61|35=A|49=EXEC|56=BANZAI|34=1|52=20260613-23:24:06|10=097|","8=FIX.4.4|9=116|35=D|49=BANZAI|56=EXEC|34=2|52=20260613-23:24:42|11=ORD1001|55=MSFT|54=1|38=10000|40=2|44=12.3|10=199|","8=FIX.4.4|9=123|35=8|49=EXEC|56=BANZAI|34=2|52=20260613-23:24:42|37=EXECORD1|11=ORD1001|17=EXEC1|150=0|39=0|55=MSFT|10=233|"].join("\n"))}>Sample log</Btn>
+          {input && <Btn t={t} onClick={() => { setInput(""); onClearAll(); }}>Clear</Btn>}
         </div>
       </div>
 
       <div style={{ padding: "14px 18px" }}>
-        {fileName && <div style={{ fontSize: "11px", color: t.textMuted, marginBottom: "8px" }}>📁 {fileName}</div>}
-        <textarea
-          value={input}
-          onChange={e => { setInput(e.target.value); setFileName(null); }}
-          rows={5}
-          placeholder="8=FIX.4.4|9=...|35=D|...  — or paste a multi-message log"
-          style={{
-            width: "100%", boxSizing: "border-box",
-            fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace",
-            fontSize: "12px", padding: "10px 12px",
-            border: `1px solid ${t.border}`, borderRadius: "8px",
-            background: t.inputBg, color: t.text, resize: "vertical", lineHeight: 1.6,
-            outline: "none",
-          }}
-          onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") handleSubmit(); }}
-        />
+        <textarea value={input} onChange={e => setInput(e.target.value)} rows={5} placeholder="8=FIX.4.4|9=...|35=D|...  — or paste raw production messages containing binary SOH lines" style={{ width: "100%", boxSizing: "border-box", fontFamily: "monospace", fontSize: "12px", padding: "10px 12px", border: `1px solid ${t.border}`, borderRadius: "8px", background: t.inputBg, color: t.text, resize: "vertical" }} onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") handleSubmit(); }} />
         <div style={{ display: "flex", gap: "10px", alignItems: "center", marginTop: "10px" }}>
-          <PrimaryBtn onClick={handleSubmit} loading={loading} disabled={!input.trim()} t={t}>
-            {mode === "log" ? "Parse log →" : "Parse message →"}
-          </PrimaryBtn>
+          <PrimaryBtn onClick={handleSubmit} loading={loading} disabled={!input.trim()} t={t}>{mode === "log" ? "Parse log →" : "Parse message →"}</PrimaryBtn>
           <span style={{ fontSize: "11px", color: t.textFaint }}>or Ctrl+Enter</span>
-          {loading && <span style={{ fontSize: "12px", color: t.textMuted }}>Contacting backend — may take ~50s on first wake…</span>}
         </div>
-        {error && (
-          <div style={{ marginTop: "10px", padding: "10px 12px", borderRadius: "8px", background: t.redBg, border: `1px solid ${t.red}`, color: t.red, fontSize: "12px" }}>
-            {error}
-          </div>
-        )}
       </div>
     </Card>
   );
 }
 
-// ─── Popular Tags Quick Reference ─────────────────────────────────────────────
+// ─── Popular Tags Grid ────────────────────────────────────────────────────────
 function PopularTagsGrid({ t, onTagClick }) {
   const doLookup = useCallback(async (tagNum) => {
     try {
@@ -864,20 +714,16 @@ function PopularTagsGrid({ t, onTagClick }) {
       const d = await res.json();
       const f = d.sequence ? d.sequence.find(f => String(f.tag) === String(tagNum)) : null;
       if (f) onTagClick(f);
-    } catch { /* silent */ }
+    } catch {}
   }, [onTagClick]);
 
   return (
     <div style={{ marginTop: "16px" }}>
-      <div style={{ fontSize: "11px", fontWeight: 600, color: t.textMuted, letterSpacing: "0.5px", marginBottom: "10px" }}>COMMON TAGS — click to look up</div>
+      <div style={{ fontSize: "11px", fontWeight: 600, color: t.textMuted, marginBottom: "10px" }}>COMMON TAGS — click to look up</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "6px" }}>
         {POPULAR_TAGS.map(([tag, name]) => (
-          <button key={tag} onClick={() => doLookup(tag)} style={{
-            textAlign: "left", padding: "10px 12px", borderRadius: "8px",
-            border: `1px solid ${t.border}`, background: t.panel,
-            cursor: "pointer", transition: "border-color 0.15s",
-          }}>
-            <div style={{ fontSize: "10px", color: t.textFaint, letterSpacing: "0.4px", fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace" }}>TAG {tag}</div>
+          <button key={tag} onClick={() => doLookup(tag)} style={{ textAlign: "left", padding: "10px 12px", borderRadius: "8px", border: `1px solid ${t.border}`, background: t.panel, cursor: "pointer" }}>
+            <div style={{ fontSize: "10px", color: t.textFaint, fontFamily: "monospace" }}>TAG {tag}</div>
             <div style={{ fontSize: "13px", color: t.text, fontWeight: 600, marginTop: "2px" }}>{name}</div>
           </button>
         ))}
@@ -895,23 +741,41 @@ export default function App() {
   const [singleInput, setSingleInput] = useState("");
   const [logMessages, setLogMessages] = useState(null);
   const [tagPanel, setTagPanel] = useState(null);
+  
+  const [tableFilter, setTableFilter] = useState("");
+  const filterRef = useRef(null);
+
+  // Global Key Listener for Auto-Focus Shortcut ('/')
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "/" && document.activeElement?.tagName !== "TEXTAREA" && document.activeElement?.tagName !== "INPUT") {
+        e.preventDefault();
+        if (filterRef.current) filterRef.current.focus();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const handleSingleResult = (result, input) => {
     setSingleResult(result);
     setSingleInput(input);
     setLogMessages(null);
+    setTableFilter("");
   };
 
   const handleLogResult = (messages) => {
     setLogMessages(messages);
     setSingleResult(null);
     setSingleInput("");
+    setTableFilter("");
   };
 
   const handleClearAll = () => {
     setSingleResult(null);
     setSingleInput("");
     setLogMessages(null);
+    setTableFilter("");
   };
 
   const hasResult = singleResult || logMessages;
@@ -923,73 +787,37 @@ export default function App() {
         html, body, #root { height: 100%; width: 100%; }
         body { background: ${t.page}; display: block !important; }
         #root { max-width: none !important; margin: 0 !important; padding: 0 !important; text-align: left !important; }
-        button { font-family: inherit; }
-        textarea, input, select { font-family: inherit; }
-        a { text-decoration: none; }
       `}</style>
 
-      <div style={{
-        minHeight: "100vh", background: t.page, color: t.text,
-        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-        display: "flex", flexDirection: "column", width: "100%"
-      }}>
-
-        {/* ── Header ── */}
-        <header style={{
-          position: "sticky", top: 0, zIndex: 100,
-          background: t.header, borderBottom: `1px solid ${t.border}`,
-          display: "flex", alignItems: "center",
-          padding: "0 24px", height: "52px", gap: "16px",
-          boxShadow: themeName === "dark" ? "0 1px 0 #30363d" : "0 1px 0 #d0d7de",
-          width: "100%"
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0 }}>
-            <div style={{
-              width: "28px", height: "28px", borderRadius: "6px",
-              background: t.accent, display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: "13px", fontWeight: 800, color: "#fff",
-            }}>F</div>
+      <div style={{ minHeight: "100vh", background: t.page, color: t.text, fontFamily: "system-ui, sans-serif", display: "flex", flexDirection: "column", width: "100%" }}>
+        
+        {/* Header */}
+        <header style={{ position: "sticky", top: 0, zIndex: 100, background: t.header, borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", padding: "0 24px", height: "52px", gap: "16px", width: "100%" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <div style={{ width: "28px", height: "28px", borderRadius: "6px", background: t.accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px", fontWeight: 800, color: "#fff" }}>F</div>
             <div>
-              <div style={{ fontSize: "14px", fontWeight: 700, color: t.text, lineHeight: 1.1 }}>
-                <span style={{ color: t.accent }}>FIX</span> Parser
-              </div>
+              <div style={{ fontSize: "14px", fontWeight: 700, color: t.text, lineHeight: 1.1 }}><span style={{ color: t.accent }}>FIX</span> Parser</div>
               <div style={{ fontSize: "9px", color: t.textFaint, letterSpacing: "0.5px" }}>PROTOCOL ANALYSIS</div>
             </div>
           </div>
-
           <div style={{ flex: 1 }} />
           <HeaderTagSearch t={t} onResult={f => setTagPanel(f)} />
-
-          <button onClick={() => setThemeName(n => n === "dark" ? "light" : "dark")} style={{
-            height: "32px", padding: "0 12px", borderRadius: "6px", fontSize: "12px",
-            border: `1px solid ${t.border}`, background: "transparent", color: t.textMuted,
-            cursor: "pointer", display: "flex", alignItems: "center", gap: "6px",
-          }}>
-            <span>{themeName === "dark" ? "☀" : "🌙"}</span>
-            {themeName === "dark" ? "Light" : "Dark"}
+          <button onClick={() => setThemeName(n => n === "dark" ? "light" : "dark")} style={{ height: "32px", padding: "0 12px", borderRadius: "6px", fontSize: "12px", border: `1px solid ${t.border}`, background: "transparent", color: t.textMuted, cursor: "pointer" }}>
+            {themeName === "dark" ? "☀ Light" : "🌙 Dark"}
           </button>
         </header>
 
-        {/* ── Main content ── */}
-        <main style={{ flex: 1, padding: "24px", width: "100%", boxSizing: "border-box" }}>
-          
-          <UnifiedInput 
-            t={t} 
-            onSingleResult={handleSingleResult} 
-            onLogResult={handleLogResult} 
-            onClearAll={handleClearAll} 
-          />
+        {/* Main Workspace Tier */}
+        <main style={{ flex: 1, padding: "24px", width: "100%" }}>
+          <UnifiedInput t={t} onSingleResult={handleSingleResult} onLogResult={handleLogResult} onClearAll={handleClearAll} />
 
           {singleResult && (
-            <SingleResult result={singleResult} originalInput={singleInput} t={t} onTagClick={f => setTagPanel(f)} />
+            <SingleResult result={singleResult} originalInput={singleInput} t={t} onTagClick={f => setTagPanel(f)} filterRef={filterRef} tableFilter={tableFilter} setTableFilter={setTableFilter} />
           )}
           {logMessages && (
-            <SessionResult messages={logMessages} t={t} onTagClick={f => setTagPanel(f)} />
+            <SessionResult messages={logMessages} t={t} onTagClick={f => setTagPanel(f)} filterRef={filterRef} tableFilter={tableFilter} setTableFilter={setTableFilter} />
           )}
-
-          {!hasResult && (
-            <PopularTagsGrid t={t} onTagClick={f => setTagPanel(f)} />
-          )}
+          {!hasResult && <PopularTagsGrid t={t} onTagClick={f => setTagPanel(f)} />}
         </main>
       </div>
 
