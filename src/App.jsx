@@ -611,95 +611,184 @@ function SingleResult({ result, originalInput, t, onTagClick, filterRef, tableFi
   );
 }
 
+// ─── MsgType abbreviation map for the log table ──────────────────────────────
+function abbrevMsgType(msgTypeName, msgType) {
+  const map = {
+    "New Order Single":                  "NOS",
+    "Execution Report":                  "ExecRpt",
+    "Order Cancel Request":              "CxlReq",
+    "Order Cancel/Replace Request":      "Cxl/Rep",
+    "Order Cancel Reject":               "CxlRej",
+    "Logon":                             "Logon",
+    "Logout":                            "Logout",
+    "Heartbeat":                         "HB",
+    "Test Request":                      "TestReq",
+    "Resend Request":                    "Resend",
+    "Sequence Reset":                    "SeqRst",
+    "Reject":                            "Reject",
+    "Business Message Reject":           "BizRej",
+    "New Order List":                    "NOL",
+    "Market Data Request":               "MDReq",
+    "Market Data Snapshot/Full Refresh": "MD-Full",
+    "Market Data Incremental Refresh":   "MD-Incr",
+    "Market Data Request Reject":        "MD-Rej",
+    "Quote Request":                     "QuoteReq",
+    "Quote":                             "Quote",
+    "Allocation Instruction":            "Alloc",
+    "Allocation Instruction Ack":        "AllocAck",
+    "Trade Capture Report":              "TrdCapt",
+    "Order Mass Status Request":         "MassStat",
+  };
+  return map[msgTypeName] || msgTypeName || msgType || "?";
+}
+
 // ─── Session / Log Result ────────────────────────────────────────────────────
 function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTableFilter }) {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [detailMode, setDetailMode] = useState("table");
+  const [logFilter, setLogFilter] = useState("");
 
   const idMap = buildRelatedIdMap(messages);
   const sel = messages[selectedIdx] || null;
   const selGroupKey = sel && sel.clOrdID ? idMap[sel.clOrdID] : null;
 
+  const filterLower = logFilter.trim().toLowerCase();
+  const filteredMessages = filterLower
+    ? messages.filter(m =>
+        abbrevMsgType(m.msgTypeName, m.msgType).toLowerCase().includes(filterLower) ||
+        (m.msgTypeName || "").toLowerCase().includes(filterLower) ||
+        (m.summary || "").toLowerCase().includes(filterLower) ||
+        (m.senderCompID || "").toLowerCase().includes(filterLower) ||
+        (m.targetCompID || "").toLowerCase().includes(filterLower)
+      )
+    : messages;
+
+  const cellBase = {
+    padding: "5px 6px",
+    fontSize: "11px",
+    verticalAlign: "middle",
+    borderBottom: "1px solid " + t.borderSub,
+  };
+
   return (
     <div style={{ marginTop: "20px", display: "flex", gap: "16px", alignItems: "flex-start" }}>
-      <div style={{ flex: "0 0 320px", minWidth: "260px" }}>
-        <div style={{ fontSize: "11px", fontWeight: 600, color: t.textMuted, marginBottom: "8px" }}>TIMELINE · {messages.length} MESSAGES</div>
-        <Card t={t}>
-          <div style={{ overflowY: "auto", maxHeight: "70vh", padding: "6px 0" }}>
-            {messages.map((m, i) => {
-              const isSel = i === selectedIdx;
-              const isRel = selGroupKey && m.clOrdID && idMap[m.clOrdID] === selGroupKey && !isSel;
-              const timeDelta = i > 0 ? calculateTimeDelta(m.sendingTime, messages[i - 1].sendingTime) : null;
 
-              return (
-                <div key={m.logIndex ?? i}>
-                  {/* ── Inter-message connector with delay badge ── */}
-                  {timeDelta && (
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", margin: "0 auto", width: "100%" }}>
-                      <div style={{ width: "2px", height: "10px", background: t.border }} />
-                      <span style={{
-                        fontSize: "10px", padding: "2px 10px",
-                        background: t.panelAlt, color: t.purple,
-                        borderRadius: "20px", border: "1px solid " + t.border,
-                        fontWeight: 700, letterSpacing: "0.3px",
-                        boxShadow: "0 1px 4px rgba(0,0,0,0.1)", zIndex: 2,
-                        whiteSpace: "nowrap",
-                      }}>{timeDelta}</span>
-                      <div style={{ width: "2px", height: "10px", background: t.border }} />
-                    </div>
-                  )}
+      {/* ── Left: Log table ── */}
+      <div style={{ flex: "0 0 560px", minWidth: "320px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px", gap: "8px" }}>
+          <span style={{ fontSize: "11px", fontWeight: 600, color: t.textMuted, whiteSpace: "nowrap" }}>
+            TIMELINE · {messages.length} MESSAGES
+            {filterLower && filteredMessages.length !== messages.length ? ` · ${filteredMessages.length} shown` : ""}
+          </span>
+          <input
+            value={logFilter}
+            onChange={e => setLogFilter(e.target.value)}
+            placeholder="Filter type, summary, party…"
+            style={{ height: "26px", padding: "0 8px", borderRadius: "6px", fontSize: "11px", border: "1px solid " + t.border, background: t.inputBg, color: t.text, outline: "none", width: "200px", flexShrink: 0 }}
+          />
+        </div>
 
-                  {/* ── Message card ── */}
-                  <div
-                    onClick={() => { setSelectedIdx(i); setDetailMode("table"); setTableFilter(""); }}
-                    style={{
-                      padding: "10px 14px", cursor: "pointer",
-                      borderLeft: "3px solid " + (isSel ? t.accent : isRel ? t.yellow : t.borderSub),
-                      background: isSel ? t.accentBg : isRel ? t.yellowBg : "transparent",
-                      borderRadius: "6px", margin: "0 6px",
-                      boxShadow: isSel ? t.shadow : "none",
-                      transition: "all 0.15s ease",
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                      <span style={{ fontSize: "10px", color: t.textFaint, fontFamily: "monospace" }}>
-                        {m.sendingTime ? m.sendingTime.split("-")[1] : "#" + (i + 1)}
-                      </span>
-                      <span style={{ fontSize: "10px", color: t.textFaint }}>{m.senderCompID}➔{m.targetCompID}</span>
-                    </div>
-                    <div style={{ marginBottom: "4px" }}>
-                      <Badge text={m.msgTypeName} t={t} />
-                    </div>
-                    <div style={{ fontSize: "12px", color: t.text, fontWeight: 500 }}>{m.summary}</div>
-                  </div>
-                </div>
-              );
-            })}
+        <Card t={t} style={{ overflow: "hidden", padding: 0 }}>
+          <div style={{ overflowY: "auto", maxHeight: "70vh" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+              <colgroup>
+                <col style={{ width: "30px" }} />
+                <col style={{ width: "86px" }} />
+                <col style={{ width: "74px" }} />
+                <col style={{ width: "108px" }} />
+                <col />
+                <col style={{ width: "50px" }} />
+              </colgroup>
+              <thead>
+                <tr style={{ background: t.panelAlt, position: "sticky", top: 0, zIndex: 1 }}>
+                  {[["#","right"],["Time","left"],["Type","left"],["Direction","left"],["Summary","left"],["Δt","right"]].map(([label, align]) => (
+                    <th key={label} style={{ padding: "5px 6px", fontSize: "10px", fontWeight: 600, color: t.textFaint, textAlign: align, borderBottom: "1px solid " + t.border, letterSpacing: "0.3px" }}>
+                      {label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredMessages.map((m) => {
+                  const i = messages.indexOf(m);
+                  const isSel = i === selectedIdx;
+                  const isRel = selGroupKey && m.clOrdID && idMap[m.clOrdID] === selGroupKey && !isSel;
+                  const timeDelta = i > 0 ? calculateTimeDelta(m.sendingTime, messages[i - 1].sendingTime) : null;
+                  const badge = badgeFor(m.msgTypeName, t);
+                  const abbrev = abbrevMsgType(m.msgTypeName, m.msgType);
+                  const timeStr = m.sendingTime ? (m.sendingTime.split("-")[1] || m.sendingTime) : `#${i + 1}`;
+                  const rowBg = isSel ? t.accentBg : isRel ? t.yellowBg : "transparent";
+
+                  return (
+                    <tr
+                      key={m.logIndex ?? i}
+                      onClick={() => { setSelectedIdx(i); setDetailMode("table"); setTableFilter(""); }}
+                      style={{
+                        background: rowBg,
+                        borderLeft: "3px solid " + (isSel ? t.accent : isRel ? t.yellow : "transparent"),
+                        cursor: "pointer",
+                        transition: "background 0.08s",
+                      }}
+                      onMouseEnter={e => { if (!isSel && !isRel) e.currentTarget.style.background = t.panelAlt; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = rowBg; }}
+                    >
+                      <td style={{ ...cellBase, textAlign: "right", color: t.textFaint, fontFamily: "monospace", paddingRight: "8px" }}>{i + 1}</td>
+                      <td style={{ ...cellBase, fontFamily: "monospace", color: t.textMuted, fontSize: "10px" }}>{timeStr}</td>
+                      <td style={{ ...cellBase }}>
+                        <span style={{ display: "inline-block", fontSize: "10px", fontWeight: 600, padding: "1px 6px", borderRadius: "20px", background: badge.bg, color: badge.fg, border: "0.5px solid " + badge.border, whiteSpace: "nowrap", maxWidth: "70px", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {abbrev}
+                        </span>
+                      </td>
+                      <td style={{ ...cellBase, color: t.textFaint, fontSize: "10px", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {m.senderCompID}→{m.targetCompID}
+                      </td>
+                      <td style={{ ...cellBase, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {m.summary}
+                      </td>
+                      <td style={{ ...cellBase, textAlign: "right", fontFamily: "monospace", color: t.purple, fontSize: "10px" }}>
+                        {timeDelta || "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {filteredMessages.length === 0 && (
+                  <tr>
+                    <td colSpan={6} style={{ padding: "24px", textAlign: "center", color: t.textFaint, fontSize: "12px" }}>
+                      No messages match "{logFilter}"
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </Card>
       </div>
 
+      {/* ── Right: Detail panel ── */}
       <div style={{ flex: 1, minWidth: 0 }}>
         {sel ? (
           <div>
             <ValidationBanner result={sel} t={t} />
             <ExecutionSummaryVisualizer result={sel} t={t} />
-            {sel.rawMessage && <div style={{ marginBottom: "12px" }}><ThemedAnatomyBar result={sel} originalInput={sel.rawMessage} t={t} /></div>}
-            
+            {sel.rawMessage && (
+              <div style={{ marginBottom: "12px" }}>
+                <ThemedAnatomyBar result={sel} originalInput={sel.rawMessage} t={t} />
+              </div>
+            )}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", marginBottom: "12px", flexWrap: "wrap" }}>
               <div style={{ display: "flex", gap: "6px" }}>
                 {["table", "walkthrough"].map(v => (
-                  <button key={v} onClick={() => setDetailMode(v)} style={{ padding: "5px 12px", borderRadius: "6px", fontSize: "12px", border: "1px solid " + (detailMode === v ? t.accent : t.border), background: detailMode === v ? t.accentBg : t.panel, color: detailMode === v ? t.accent : t.textMuted, cursor: "pointer" }}>{v === "table" ? "Table" : "Walkthrough"}</button>
+                  <button key={v} onClick={() => setDetailMode(v)} style={{ padding: "5px 12px", borderRadius: "6px", fontSize: "12px", border: "1px solid " + (detailMode === v ? t.accent : t.border), background: detailMode === v ? t.accentBg : t.panel, color: detailMode === v ? t.accent : t.textMuted, cursor: "pointer" }}>
+                    {v === "table" ? "Table" : "Walkthrough"}
+                  </button>
                 ))}
               </div>
-
               {detailMode === "table" && (
                 <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: "1", maxWidth: "400px" }}>
-                  <input ref={filterRef} type="text" value={tableFilter} onChange={e => setTableFilter(e.target.value)} placeholder="🔍 Filter fields... (Press '/' to focus)" style={{ width: "100%", height: "32px", padding: "0 10px", borderRadius: "6px", fontSize: "12px", border: "1px solid " + t.border, background: t.inputBg, color: t.text, outline: "none" }} />
+                  <input ref={filterRef} type="text" value={tableFilter} onChange={e => setTableFilter(e.target.value)} placeholder="🔍 Filter fields… (Press '/' to focus)" style={{ width: "100%", height: "32px", padding: "0 10px", borderRadius: "6px", fontSize: "12px", border: "1px solid " + t.border, background: t.inputBg, color: t.text, outline: "none" }} />
                 </div>
               )}
             </div>
-
             {detailMode === "table" ? (
               <>
                 <FieldTable rows={sel.components.header}  sectionKey="header"  t={t} onTagClick={onTagClick} filterText={tableFilter} />
