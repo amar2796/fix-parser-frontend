@@ -103,18 +103,29 @@ function buildRelatedIdMap(messages) {
 function calculateTimeDelta(currTimeStr, prevTimeStr) {
   if (!currTimeStr || !prevTimeStr) return null;
   try {
-    const formatTime = (s) => {
-      const parts = s.split("-");
-      const timePart = parts[1] || parts[0];
-      const [hms, ms] = timePart.split(".");
-      const [h, m, sec] = hms.split(":");
-      const d = new Date(2026, 0, 1, parseInt(h), parseInt(m), parseInt(sec));
-      if (ms) d.setMilliseconds(parseInt(ms.padEnd(3, "0").slice(0, 3)));
-      return d.getTime();
+    // FIX timestamps are YYYYMMDD-HH:MM:SS[.sss]
+    // Convert to ISO 8601 so Date can parse them correctly regardless of year or day boundary.
+    const toMs = (s) => {
+      // Handle both "YYYYMMDD-HH:MM:SS.sss" and legacy "HH:MM:SS.sss" (date-less) formats.
+      const full = /^(\d{4})(\d{2})(\d{2})-(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?$/.exec(s);
+      if (full) {
+        const [, yr, mo, dy, h, m, sec, frac] = full;
+        const ms = frac ? parseInt(frac.padEnd(3, "0").slice(0, 3)) : 0;
+        return new Date(`${yr}-${mo}-${dy}T${h}:${m}:${sec}`).getTime() + ms;
+      }
+      // Fallback: time-only string (no date part) — use an arbitrary fixed date so
+      // subtraction is still meaningful within the same trading day.
+      const timeOnly = /^(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?$/.exec(s);
+      if (timeOnly) {
+        const [, h, m, sec, frac] = timeOnly;
+        const ms = frac ? parseInt(frac.padEnd(3, "0").slice(0, 3)) : 0;
+        return new Date(`2000-01-01T${h}:${m}:${sec}`).getTime() + ms;
+      }
+      return NaN;
     };
-    const diff = formatTime(currTimeStr) - formatTime(prevTimeStr);
+    const diff = toMs(currTimeStr) - toMs(prevTimeStr);
     if (isNaN(diff) || diff < 0) return null;
-    return diff < 1000 ? `+${diff}ms` : `+ ${(diff / 1000).toFixed(2)}s`;
+    return diff < 1000 ? `+${diff}ms` : `+${(diff / 1000).toFixed(2)}s`;
   } catch (e) { return null; }
 }
 
@@ -622,7 +633,7 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
               const timeDelta = i > 0 ? calculateTimeDelta(m.sendingTime, messages[i - 1].sendingTime) : null;
 
               return (
-                <div key={i} style={{ display: "flex", flexDirection: "column" }}>
+                <div key={m.logIndex ?? i} style={{ display: "flex", flexDirection: "column" }}>
                   {timeDelta && (
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", position: "relative", margin: "6px 0" }}>
                       <div style={{ width: "2px", height: "12px", background: t.border, opacity: 0.5 }} />
@@ -736,7 +747,7 @@ function UnifiedInput({ t, onSingleResult, onLogResult, onClearAll, input, setIn
         onSingleResult(d, input);
       }
     } catch (e) {
-      setError("Contacting backend service container...");
+      setError("Could not reach the backend. If this is the first request in a while, the service may be cold-starting (~30s). Please try again.");
     } finally { setLoading(false); }
   };
 
@@ -775,24 +786,58 @@ function UnifiedInput({ t, onSingleResult, onLogResult, onClearAll, input, setIn
   );
 }
 
+// ─── Local tag metadata map (avoids firing an API call just to look up a name) ─
+// Keyed by tag number; values match the shape expected by onTagClick / TagPanel.
+const LOCAL_TAG_META = Object.fromEntries(
+  POPULAR_TAGS.map(([tag, name]) => [
+    tag,
+    { tag, name, raw: "", meaning: "", decoded: "", why: "", referenceUrl: `https://www.onixs.biz/fix-dictionary/4.4/tagNum_${tag}.html` },
+  ])
+);
+
 // ─── Popular Tags Grid ────────────────────────────────────────────────────────
 function PopularTagsGrid({ t, onTagClick }) {
+  const [loadingTag, setLoadingTag] = useState(null);
+  const [lookupError, setLookupError] = useState(null);
+
   const doLookup = useCallback(async (tagNum) => {
+    // Use the locally-known metadata immediately so the panel opens without a
+    // network round-trip.  Then try to enrich it with live backend data (which
+    // includes the "why" explanation and any enum decoding) in the background.
+    const local = LOCAL_TAG_META[tagNum];
+    if (local) onTagClick(local);
+
+    setLoadingTag(tagNum);
+    setLookupError(null);
     try {
       const syn = "8=FIX.4.4|9=10|35=0|" + tagNum + "=X|10=000|";
       const res = await fetch(API, { method: "POST", headers: { "Content-Type": "text/plain" }, body: syn });
+      if (!res.ok) throw new Error("HTTP " + res.status);
       const d = await res.json();
       const f = d.sequence ? d.sequence.find(f => String(f.tag) === String(tagNum)) : null;
-      if (f) onTagClick(f);
-    } catch {}
+      if (f) onTagClick(f); // update panel with richer data if available
+    } catch {
+      // Don't close the panel — the local metadata is already showing.
+      // Surface a non-intrusive hint that the backend may be cold-starting.
+      setLookupError(tagNum);
+    } finally {
+      setLoadingTag(null);
+    }
   }, [onTagClick]);
 
   return (
     <div style={{ marginTop: "16px" }}>
-      <div style={{ fontSize: "11px", fontWeight: 600, color: t.textMuted, marginBottom: "10px" }}>COMMON TAGS — click to look up</div>
+      <div style={{ fontSize: "11px", fontWeight: 600, color: t.textMuted, marginBottom: "10px" }}>
+        COMMON TAGS — click to look up
+      </div>
+      {lookupError && (
+        <div style={{ marginBottom: "8px", fontSize: "11px", color: t.yellow, background: t.yellowBg, border: "1px solid " + t.yellow, borderRadius: "6px", padding: "6px 10px" }}>
+          ⚠ Backend enrichment unavailable — showing local data. The service may be starting up (this can take ~30s on first load).
+        </div>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "6px" }}>
         {POPULAR_TAGS.map(([tag, name]) => (
-          <button key={tag} onClick={() => doLookup(tag)} style={{ textAlign: "left", padding: "10px 12px", borderRadius: "8px", border: "1px solid " + t.border, background: t.panel, cursor: "pointer" }}>
+          <button key={tag} onClick={() => doLookup(tag)} style={{ textAlign: "left", padding: "10px 12px", borderRadius: "8px", border: "1px solid " + t.border, background: t.panel, cursor: "pointer", opacity: loadingTag === tag ? 0.6 : 1, transition: "opacity 0.15s" }}>
             <div style={{ fontSize: "10px", color: t.textFaint, fontFamily: "monospace" }}>TAG {tag}</div>
             <div style={{ fontSize: "13px", color: t.text, fontWeight: 600, marginTop: "2px" }}>{name}</div>
           </button>
