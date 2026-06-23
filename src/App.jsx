@@ -625,42 +625,52 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
       <div style={{ flex: "0 0 320px", minWidth: "260px" }}>
         <div style={{ fontSize: "11px", fontWeight: 600, color: t.textMuted, marginBottom: "8px" }}>TIMELINE · {messages.length} MESSAGES</div>
         <Card t={t}>
-          <div style={{ overflowY: "auto", maxHeight: "70vh" }}>
+          <div style={{ overflowY: "auto", maxHeight: "70vh", padding: "6px 0" }}>
             {messages.map((m, i) => {
               const isSel = i === selectedIdx;
               const isRel = selGroupKey && m.clOrdID && idMap[m.clOrdID] === selGroupKey && !isSel;
-              
               const timeDelta = i > 0 ? calculateTimeDelta(m.sendingTime, messages[i - 1].sendingTime) : null;
 
               return (
-                <div key={m.logIndex ?? i} style={{ display: "flex", flexDirection: "column" }}>
+                <div key={m.logIndex ?? i}>
+                  {/* ── Inter-message connector with delay badge ── */}
                   {timeDelta && (
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", position: "relative", margin: "6px 0" }}>
-                      <div style={{ width: "2px", height: "12px", background: t.border, opacity: 0.5 }} />
-                      <span style={{ 
-                        fontSize: "10px", padding: "3px 10px", background: t.page, color: t.purple, 
-                        borderRadius: "6px", border: "1px solid " + t.border, fontWeight: 700,
-                        letterSpacing: "0.3px", boxShadow: "0 2px 4px rgba(0,0,0,0.12)", zIndex: 2
-                      }}>{timeDelta} delay</span>
-                      <div style={{ width: "2px", height: "12px", background: t.border, opacity: 0.5 }} />
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", margin: "0 auto", width: "100%" }}>
+                      <div style={{ width: "2px", height: "10px", background: t.border }} />
+                      <span style={{
+                        fontSize: "10px", padding: "2px 10px",
+                        background: t.panelAlt, color: t.purple,
+                        borderRadius: "20px", border: "1px solid " + t.border,
+                        fontWeight: 700, letterSpacing: "0.3px",
+                        boxShadow: "0 1px 4px rgba(0,0,0,0.1)", zIndex: 2,
+                        whiteSpace: "nowrap",
+                      }}>{timeDelta}</span>
+                      <div style={{ width: "2px", height: "10px", background: t.border }} />
                     </div>
                   )}
-                  <div onClick={() => { setSelectedIdx(i); setDetailMode("table"); setTableFilter(""); }}
-                    style={{ 
-                      padding: "12px 14px", cursor: "pointer", borderBottom: "1px solid " + t.borderSub, 
-                      borderLeft: "4px solid " + (isSel ? t.accent : isRel ? t.yellow : "transparent"), 
+
+                  {/* ── Message card ── */}
+                  <div
+                    onClick={() => { setSelectedIdx(i); setDetailMode("table"); setTableFilter(""); }}
+                    style={{
+                      padding: "10px 14px", cursor: "pointer",
+                      borderLeft: "3px solid " + (isSel ? t.accent : isRel ? t.yellow : t.borderSub),
                       background: isSel ? t.accentBg : isRel ? t.yellowBg : "transparent",
-                      borderRadius: "6px", margin: "2px 6px", boxSizing: "border-box",
-                      boxShadow: isSel ? t.shadow : "none", transition: "all 0.15s ease"
-                    }}>
+                      borderRadius: "6px", margin: "0 6px",
+                      boxShadow: isSel ? t.shadow : "none",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                      <span style={{ fontSize: "10px", color: t.textFaint, fontFamily: "monospace" }}>{m.sendingTime ? m.sendingTime.split("-")[1] : "#" + (i + 1)}</span>
+                      <span style={{ fontSize: "10px", color: t.textFaint, fontFamily: "monospace" }}>
+                        {m.sendingTime ? m.sendingTime.split("-")[1] : "#" + (i + 1)}
+                      </span>
                       <span style={{ fontSize: "10px", color: t.textFaint }}>{m.senderCompID}➔{m.targetCompID}</span>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                    <div style={{ marginBottom: "4px" }}>
                       <Badge text={m.msgTypeName} t={t} />
                     </div>
-                    <div style={{ fontSize: "12px", color: t.text, fontWeight: 500, marginTop: "4px" }}>{m.summary}</div>
+                    <div style={{ fontSize: "12px", color: t.text, fontWeight: 500 }}>{m.summary}</div>
                   </div>
                 </div>
               );
