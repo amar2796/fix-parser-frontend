@@ -349,26 +349,33 @@ function FieldTable({ rows, sectionKey, t, onTagClick, filterText }) {
   });
 
   const renderRawTable = (fieldsList) => (
-    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+    <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+      <colgroup>
+        <col style={{ width: "52px" }} />   {/* Tag */}
+        <col style={{ width: "190px" }} />  {/* Field Name */}
+        <col style={{ width: "180px" }} />  {/* Raw Value */}
+        <col />                             {/* Meaning — flex fill */}
+        <col style={{ width: "32px" }} />   {/* ↗ button */}
+      </colgroup>
       <thead>
         <tr style={{ borderBottom: "1px solid " + t.border }}>
           {["Tag", "Field Name", "Raw Value", "Meaning", ""].map((h, i) => (
-            <th key={i} style={{ padding: "6px 12px", textAlign: "left", fontSize: "11px", fontWeight: 600, color: t.textMuted, letterSpacing: "0.4px" }}>{h}</th>
+            <th key={i} style={{ padding: "6px 10px", textAlign: "left", fontSize: "10px", fontWeight: 600, color: t.textFaint, letterSpacing: "0.4px", whiteSpace: "nowrap" }}>{h}</th>
           ))}
         </tr>
       </thead>
       <tbody>
         {fieldsList.map((r, i) => (
           <tr key={i} style={{ borderBottom: i < fieldsList.length - 1 ? "1px solid " + t.borderSub : "none" }}>
-            <td style={{ padding: "7px 12px", fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace", fontSize: "12px", fontWeight: 600, color: sc.text, whiteSpace: "nowrap" }}>{r.tag}</td>
-            <td style={{ padding: "7px 12px", fontSize: "13px", color: t.text, whiteSpace: "nowrap" }}>
+            <td style={{ padding: "6px 10px", fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace", fontSize: "11px", fontWeight: 700, color: sc.text, whiteSpace: "nowrap" }}>{r.tag}</td>
+            <td style={{ padding: "6px 10px", fontSize: "12px", color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {r.name}
               {r.isUnknownTag && <span style={{ fontSize: "10px", color: t.red, marginLeft: "5px" }}>unknown</span>}
             </td>
-            <td style={{ padding: "7px 12px", fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace", fontSize: "12px", color: t.textMuted, maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.raw}</td>
-            <td style={{ padding: "7px 12px", fontSize: "13px", color: t.text }}>{r.meaning}</td>
-            <td style={{ padding: "7px 12px" }}>
-              <button onClick={() => onTagClick && onTagClick(r)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "11px", color: t.accent, padding: "2px 6px", borderRadius: "4px" }}>↗</button>
+            <td style={{ padding: "6px 10px", fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace", fontSize: "11px", color: t.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.raw}</td>
+            <td style={{ padding: "6px 10px", fontSize: "12px", color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.meaning}</td>
+            <td style={{ padding: "6px 4px", textAlign: "center" }}>
+              <button onClick={() => onTagClick && onTagClick(r)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "11px", color: t.accent, padding: "2px 4px", borderRadius: "4px" }}>↗</button>
             </td>
           </tr>
         ))}
@@ -692,17 +699,16 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
           <div style={{ overflowY: "auto", maxHeight: "70vh" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
               <colgroup>
-                <col style={{ width: "30px" }} />
-                <col style={{ width: "86px" }} />
-                <col style={{ width: "74px" }} />
-                <col style={{ width: "108px" }} />
-                <col />
-                <col style={{ width: "50px" }} />
+                <col style={{ width: "32px" }} />  {/* # */}
+                <col style={{ width: "90px" }} />  {/* Time */}
+                <col style={{ width: "160px" }} /> {/* Type — wider now Direction removed */}
+                <col />                            {/* Summary — flex fill */}
+                <col style={{ width: "54px" }} />  {/* Δt */}
               </colgroup>
               <thead>
                 <tr style={{ background: t.panelAlt, position: "sticky", top: 0, zIndex: 1 }}>
-                  {[["#","right"],["Time","left"],["Type","left"],["Direction","left"],["Summary","left"],["Δt","right"]].map(([label, align]) => (
-                    <th key={label} style={{ padding: "5px 6px", fontSize: "10px", fontWeight: 600, color: t.textFaint, textAlign: align, borderBottom: "1px solid " + t.border, letterSpacing: "0.3px" }}>
+                  {[["#","right"],["Time","left"],["Type","left"],["Summary","left"],["Δt","right"]].map(([label, align]) => (
+                    <th key={label} style={{ padding: "5px 8px", fontSize: "10px", fontWeight: 600, color: t.textFaint, textAlign: align, borderBottom: "1px solid " + t.border, letterSpacing: "0.3px" }}>
                       {label}
                     </th>
                   ))}
@@ -715,9 +721,9 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
                   const isRel = selGroupKey && m.clOrdID && idMap[m.clOrdID] === selGroupKey && !isSel;
                   const timeDelta = i > 0 ? calculateTimeDelta(m.sendingTime, messages[i - 1].sendingTime) : null;
                   const badge = badgeFor(m.msgTypeName, t);
-                  const abbrev = abbrevMsgType(m.msgTypeName, m.msgType);
                   const timeStr = m.sendingTime ? (m.sendingTime.split("-")[1] || m.sendingTime) : `#${i + 1}`;
                   const rowBg = isSel ? t.accentBg : isRel ? t.yellowBg : "transparent";
+                  const fullName = m.msgTypeName || m.msgType || "Unknown";
 
                   return (
                     <tr
@@ -732,20 +738,22 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
                       onMouseEnter={e => { if (!isSel && !isRel) e.currentTarget.style.background = t.panelAlt; }}
                       onMouseLeave={e => { e.currentTarget.style.background = rowBg; }}
                     >
-                      <td style={{ ...cellBase, textAlign: "right", color: t.textFaint, fontFamily: "monospace", paddingRight: "8px" }}>{i + 1}</td>
-                      <td style={{ ...cellBase, fontFamily: "monospace", color: t.textMuted, fontSize: "10px" }}>{timeStr}</td>
-                      <td style={{ ...cellBase }}>
-                        <span style={{ display: "inline-block", fontSize: "10px", fontWeight: 600, padding: "1px 6px", borderRadius: "20px", background: badge.bg, color: badge.fg, border: "0.5px solid " + badge.border, whiteSpace: "nowrap", maxWidth: "70px", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {abbrev}
+                      <td style={{ ...cellBase, textAlign: "right", color: t.textFaint, fontFamily: "monospace", paddingRight: "6px" }}>{i + 1}</td>
+                      <td style={{ ...cellBase, fontFamily: "monospace", color: t.textMuted, fontSize: "10px", paddingLeft: "8px" }}>{timeStr}</td>
+                      <td style={{ ...cellBase, paddingLeft: "8px" }}>
+                        <span style={{
+                          display: "inline-block", fontSize: "10px", fontWeight: 600,
+                          padding: "1px 8px", borderRadius: "20px",
+                          background: badge.bg, color: badge.fg, border: "0.5px solid " + badge.border,
+                          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "152px",
+                        }}>
+                          {fullName}
                         </span>
                       </td>
-                      <td style={{ ...cellBase, color: t.textFaint, fontSize: "10px", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {m.senderCompID}→{m.targetCompID}
-                      </td>
-                      <td style={{ ...cellBase, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <td style={{ ...cellBase, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", paddingLeft: "8px" }}>
                         {m.summary}
                       </td>
-                      <td style={{ ...cellBase, textAlign: "right", fontFamily: "monospace", color: t.purple, fontSize: "10px" }}>
+                      <td style={{ ...cellBase, textAlign: "right", fontFamily: "monospace", color: t.purple, fontSize: "10px", paddingRight: "8px" }}>
                         {timeDelta || "—"}
                       </td>
                     </tr>
@@ -753,7 +761,7 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
                 })}
                 {filteredMessages.length === 0 && (
                   <tr>
-                    <td colSpan={6} style={{ padding: "24px", textAlign: "center", color: t.textFaint, fontSize: "12px" }}>
+                    <td colSpan={5} style={{ padding: "24px", textAlign: "center", color: t.textFaint, fontSize: "12px" }}>
                       No messages match "{logFilter}"
                     </td>
                   </tr>
