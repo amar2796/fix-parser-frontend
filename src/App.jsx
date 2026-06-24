@@ -324,7 +324,8 @@ function ThemedAnatomyBar({ result, originalInput, stepIdx = null, onClickField 
 }
 
 // ─── Field Table ──────────────────────────────────────────────────────────────
-function FieldTable({ rows, sectionKey, t, onTagClick, filterText }) {
+// ─── FieldTable — accordion section ──────────────────────────────────────────
+function FieldTable({ rows, sectionKey, t, onTagClick, filterText, isOpen, onToggle, sectionRef }) {
   const sc = t.sections[sectionKey];
   if (!rows || rows.length === 0) return null;
 
@@ -337,8 +338,7 @@ function FieldTable({ rows, sectionKey, t, onTagClick, filterText }) {
   if (filteredRows.length === 0) return null;
 
   const baseFields = [];
-  const groupsMap = {}; 
-
+  const groupsMap = {};
   filteredRows.forEach(r => {
     if (r.groupIndex !== undefined && r.groupIndex !== -1) {
       if (!groupsMap[r.groupIndex]) groupsMap[r.groupIndex] = [];
@@ -347,22 +347,16 @@ function FieldTable({ rows, sectionKey, t, onTagClick, filterText }) {
       baseFields.push(r);
     }
   });
-
-  // Render a single unified table covering base fields + all repeating groups.
-  // One <colgroup> means every column is the same width throughout — no misalignment.
   const groupKeys = Object.keys(groupsMap);
 
-  const renderRow = (r, i, lastInSection) => (
-    <tr
-      key={i}
-      style={{ borderBottom: lastInSection ? "none" : "1px solid " + t.borderSub }}
-    >
-      <td style={{ padding: "6px 10px", fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace", fontSize: "11px", fontWeight: 700, color: sc.text, whiteSpace: "nowrap" }}>{r.tag}</td>
+  const renderRow = (r, key, lastInSection) => (
+    <tr key={key} style={{ borderBottom: lastInSection ? "none" : "1px solid " + t.borderSub }}>
+      <td style={{ padding: "6px 10px", fontFamily: "ui-monospace,monospace", fontSize: "11px", fontWeight: 700, color: sc.text, whiteSpace: "nowrap" }}>{r.tag}</td>
       <td style={{ padding: "6px 10px", fontSize: "12px", color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {r.name}
         {r.isUnknownTag && <span style={{ fontSize: "10px", color: t.red, marginLeft: "5px" }}>unknown</span>}
       </td>
-      <td style={{ padding: "6px 10px", fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace", fontSize: "11px", color: t.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.raw}</td>
+      <td style={{ padding: "6px 10px", fontFamily: "ui-monospace,monospace", fontSize: "11px", color: t.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.raw}</td>
       <td style={{ padding: "6px 10px", fontSize: "12px", color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.meaning}</td>
       <td style={{ padding: "6px 4px", textAlign: "center" }}>
         <button onClick={() => onTagClick && onTagClick(r)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "11px", color: t.accent, padding: "2px 4px", borderRadius: "4px" }}>↗</button>
@@ -372,63 +366,147 @@ function FieldTable({ rows, sectionKey, t, onTagClick, filterText }) {
 
   const groupDivider = (gIdx) => (
     <tr key={"g-hdr-" + gIdx}>
-      <td colSpan={5} style={{
-        padding: "4px 10px",
-        background: t.panelAlt,
-        borderTop: "1px solid " + t.border,
-        borderBottom: "1px solid " + t.border,
-        borderLeft: "3px solid " + t.purple,
-        fontSize: "10px", fontWeight: 700, color: t.purple,
-        letterSpacing: "0.5px", textTransform: "uppercase",
-      }}>
-        📦 Repeating Group Entry #{parseInt(gIdx) + 1}
+      <td colSpan={5} style={{ padding: "4px 10px", background: t.panelAlt, borderTop: "1px solid " + t.border, borderBottom: "1px solid " + t.border, borderLeft: "3px solid " + t.purple, fontSize: "10px", fontWeight: 700, color: t.purple, letterSpacing: "0.5px", textTransform: "uppercase" }}>
+        Repeating group entry #{parseInt(gIdx) + 1}
       </td>
     </tr>
   );
 
   return (
-    <div style={{ marginBottom: "14px" }}>
-      {/* Section header bar */}
+    <div ref={sectionRef} style={{ marginBottom: "10px", borderRadius: "8px", border: "1px solid " + t.border, overflow: "hidden" }}>
+      {/* ── Accordion header ── */}
+      <div
+        onClick={onToggle}
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 12px", background: sc.border, cursor: "pointer", userSelect: "none" }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <span style={{ fontSize: "11px", fontWeight: 700, color: "#fff", letterSpacing: "0.8px" }}>{sc.label}</span>
+          <span style={{ fontSize: "10px", padding: "1px 7px", borderRadius: "20px", background: "rgba(255,255,255,0.2)", color: "#fff" }}>
+            {filteredRows.length} field{filteredRows.length !== 1 ? "s" : ""}
+          </span>
+          {!isOpen && groupKeys.length > 0 && (
+            <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.7)" }}>{groupKeys.length} repeating group{groupKeys.length !== 1 ? "s" : ""}</span>
+          )}
+        </div>
+        {/* Chevron */}
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ transition: "transform 0.2s", transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", flexShrink: 0 }}>
+          <path d="M3 5l4 4 4-4" stroke="rgba(255,255,255,0.8)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </div>
+
+      {/* ── Accordion body ── */}
+      {isOpen && (
+        <div style={{ background: t.panel }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+            <colgroup>
+              <col style={{ width: "52px" }} />
+              <col style={{ width: "190px" }} />
+              <col style={{ width: "180px" }} />
+              <col />
+              <col style={{ width: "32px" }} />
+            </colgroup>
+            <thead>
+              <tr style={{ borderBottom: "1px solid " + t.border, background: t.panelAlt }}>
+                {["Tag", "Field Name", "Raw Value", "Meaning", ""].map((h, i) => (
+                  <th key={i} style={{ padding: "5px 10px", textAlign: "left", fontSize: "10px", fontWeight: 600, color: t.textFaint, letterSpacing: "0.4px", whiteSpace: "nowrap" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {baseFields.map((r, i) => renderRow(r, "b" + i, i === baseFields.length - 1 && groupKeys.length === 0))}
+              {groupKeys.map((gIdx) => {
+                const fields = groupsMap[gIdx];
+                return [groupDivider(gIdx), ...fields.map((r, i) => renderRow(r, "g" + gIdx + "-" + i, i === fields.length - 1))];
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── FieldSections — sticky jump bar + three accordion FieldTables ────────────
+function FieldSections({ result, t, onTagClick, filterText }) {
+  const SECTIONS = ["header", "body", "trailer"];
+  const [openMap, setOpenMap] = useState({ header: true, body: true, trailer: true });
+  const refs = { header: useRef(null), body: useRef(null), trailer: useRef(null) };
+
+  const toggle = (key) => setOpenMap(prev => ({ ...prev, [key]: !prev[key] }));
+
+  const jumpTo = (key) => {
+    // Open if closed, then scroll into view
+    setOpenMap(prev => ({ ...prev, [key]: true }));
+    setTimeout(() => {
+      refs[key].current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 60);
+  };
+
+  const hasRows = (key) => result.components[key] && result.components[key].length > 0;
+
+  return (
+    <div>
+      {/* ── Sticky jump bar ── */}
       <div style={{
-        display: "flex", alignItems: "center", gap: "8px",
-        padding: "5px 12px", borderRadius: "6px 6px 0 0", background: sc.border,
+        display: "flex", alignItems: "center", gap: "6px",
+        padding: "6px 0", marginBottom: "10px",
+        position: "sticky", top: 0, zIndex: 10,
+        background: t.page,
+        borderBottom: "1px solid " + t.borderSub,
       }}>
-        <span style={{ fontSize: "11px", fontWeight: 700, color: "#fff", letterSpacing: "0.8px" }}>{sc.label}</span>
-        <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.6)" }}>{filteredRows.length} field{filteredRows.length !== 1 ? "s" : ""}</span>
+        <span style={{ fontSize: "10px", color: t.textFaint, marginRight: "4px", letterSpacing: "0.3px" }}>JUMP TO</span>
+        {SECTIONS.map(key => {
+          if (!hasRows(key)) return null;
+          const sc = t.sections[key];
+          const count = (result.components[key] || []).length;
+          return (
+            <button
+              key={key}
+              onClick={() => jumpTo(key)}
+              style={{
+                display: "flex", alignItems: "center", gap: "5px",
+                padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 600,
+                border: "1px solid " + sc.border,
+                background: openMap[key] ? sc.border : "transparent",
+                color: openMap[key] ? "#fff" : sc.border,
+                cursor: "pointer", transition: "all 0.15s",
+              }}
+            >
+              {sc.label}
+              <span style={{
+                fontSize: "10px", padding: "0 5px", borderRadius: "20px",
+                background: openMap[key] ? "rgba(255,255,255,0.25)" : t.panelAlt,
+                color: openMap[key] ? "#fff" : t.textFaint,
+              }}>{count}</span>
+            </button>
+          );
+        })}
+        {/* Collapse / expand all */}
+        <button
+          onClick={() => {
+            const anyOpen = SECTIONS.some(k => openMap[k]);
+            setOpenMap({ header: !anyOpen, body: !anyOpen, trailer: !anyOpen });
+          }}
+          style={{ marginLeft: "auto", fontSize: "10px", padding: "3px 8px", borderRadius: "6px", border: "1px solid " + t.border, background: "transparent", color: t.textFaint, cursor: "pointer" }}
+        >
+          {SECTIONS.some(k => openMap[k]) ? "Collapse all" : "Expand all"}
+        </button>
       </div>
 
-      {/* Single unified table — one colgroup rules all rows */}
-      <div style={{ border: "1px solid " + t.border, borderTop: "none", borderRadius: "0 0 6px 6px", background: t.panel, overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
-          <colgroup>
-            <col style={{ width: "52px" }} />   {/* Tag */}
-            <col style={{ width: "190px" }} />  {/* Field Name */}
-            <col style={{ width: "180px" }} />  {/* Raw Value */}
-            <col />                             {/* Meaning */}
-            <col style={{ width: "32px" }} />   {/* ↗ */}
-          </colgroup>
-          <thead>
-            <tr style={{ borderBottom: "1px solid " + t.border }}>
-              {["Tag", "Field Name", "Raw Value", "Meaning", ""].map((h, i) => (
-                <th key={i} style={{ padding: "6px 10px", textAlign: "left", fontSize: "10px", fontWeight: 600, color: t.textFaint, letterSpacing: "0.4px", whiteSpace: "nowrap" }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {/* Base fields */}
-            {baseFields.map((r, i) => renderRow(r, "b" + i, i === baseFields.length - 1 && groupKeys.length === 0))}
-
-            {/* Repeating groups — each gets a divider row then its fields */}
-            {groupKeys.map((gIdx) => {
-              const fields = groupsMap[gIdx];
-              return [
-                groupDivider(gIdx),
-                ...fields.map((r, i) => renderRow(r, "g" + gIdx + "-" + i, i === fields.length - 1)),
-              ];
-            })}
-          </tbody>
-        </table>
-      </div>
+      {/* ── Three accordion sections ── */}
+      {SECTIONS.map(key => (
+        <FieldTable
+          key={key}
+          rows={result.components[key]}
+          sectionKey={key}
+          t={t}
+          onTagClick={onTagClick}
+          filterText={filterText}
+          isOpen={openMap[key]}
+          onToggle={() => toggle(key)}
+          sectionRef={refs[key]}
+        />
+      ))}
     </div>
   );
 }
@@ -630,11 +708,7 @@ function SingleResult({ result, originalInput, t, onTagClick, filterRef, tableFi
       </div>
 
       {subView === "table" ? (
-        <>
-          <FieldTable rows={result.components.header}  sectionKey="header"  t={t} onTagClick={onTagClick} filterText={tableFilter} />
-          <FieldTable rows={result.components.body}    sectionKey="body"    t={t} onTagClick={onTagClick} filterText={tableFilter} />
-          <FieldTable rows={result.components.trailer} sectionKey="trailer" t={t} onTagClick={onTagClick} filterText={tableFilter} />
-        </>
+        <FieldSections result={result} t={t} onTagClick={onTagClick} filterText={tableFilter} />
       ) : (
         <Walkthrough result={result} originalInput={originalInput} t={t} />
       )}
@@ -822,11 +896,7 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
               )}
             </div>
             {detailMode === "table" ? (
-              <>
-                <FieldTable rows={sel.components.header}  sectionKey="header"  t={t} onTagClick={onTagClick} filterText={tableFilter} />
-                <FieldTable rows={sel.components.body}    sectionKey="body"    t={t} onTagClick={onTagClick} filterText={tableFilter} />
-                <FieldTable rows={sel.components.trailer} sectionKey="trailer" t={t} onTagClick={onTagClick} filterText={tableFilter} />
-              </>
+              <FieldSections result={sel} t={t} onTagClick={onTagClick} filterText={tableFilter} />
             ) : sel.rawMessage ? (
               <Walkthrough result={sel} originalInput={sel.rawMessage} t={t} />
             ) : null}
