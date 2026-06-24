@@ -780,13 +780,16 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [detailMode, setDetailMode] = useState("table");
   const [logFilter, setLogFilter] = useState("");
+  const [spikeMs, setSpikeMs] = useState(500); // latency spike threshold in ms
+  const tableRef = useRef(null);
 
   const idMap = buildRelatedIdMap(messages);
   const sel = messages[selectedIdx] || null;
   const selGroupKey = sel && sel.clOrdID ? idMap[sel.clOrdID] : null;
 
   const filterLower = logFilter.trim().toLowerCase();
-  const filteredMessages = filterLower
+  // Store originalIndex on each filtered entry to avoid O(n²) indexOf
+  const filteredMessages = (filterLower
     ? messages.filter(m =>
         abbrevMsgType(m.msgTypeName, m.msgType).toLowerCase().includes(filterLower) ||
         (m.msgTypeName || "").toLowerCase().includes(filterLower) ||
@@ -794,7 +797,41 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
         (m.senderCompID || "").toLowerCase().includes(filterLower) ||
         (m.targetCompID || "").toLowerCase().includes(filterLower)
       )
-    : messages;
+    : messages
+  ).map((m, fi) => ({ ...m, _fi: fi, _oi: messages.indexOf(m) }));
+
+  // Arrow key navigation — J/K or ↑/↓
+  useEffect(() => {
+    const handler = (e) => {
+      if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") return;
+      if (e.key === "ArrowDown" || e.key === "j") {
+        e.preventDefault();
+        setSelectedIdx(i => Math.min(i + 1, messages.length - 1));
+      } else if (e.key === "ArrowUp" || e.key === "k") {
+        e.preventDefault();
+        setSelectedIdx(i => Math.max(i - 1, 0));
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [messages.length]);
+
+  // Scroll selected row into view when navigating with keyboard
+  useEffect(() => {
+    if (!tableRef.current) return;
+    const row = tableRef.current.querySelector(`tr[data-idx="${selectedIdx}"]`);
+    if (row) row.scrollIntoView({ block: "nearest" });
+  }, [selectedIdx]);
+
+  const dtColor = (deltaStr) => {
+    if (!deltaStr || deltaStr === "—") return t.purple;
+    const ms = deltaStr.includes("s") && !deltaStr.includes("ms")
+      ? parseFloat(deltaStr) * 1000
+      : parseFloat(deltaStr);
+    if (ms >= spikeMs) return t.red;
+    if (ms >= spikeMs / 2) return t.yellow;
+    return t.purple;
+  };
 
   const cellBase = {
     padding: "5px 6px",
@@ -808,28 +845,35 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
 
       {/* ── Left: Log table ── */}
       <div style={{ flex: "0 0 560px", minWidth: "320px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px", gap: "8px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px", gap: "8px", flexWrap: "wrap" }}>
           <span style={{ fontSize: "11px", fontWeight: 600, color: t.textMuted, whiteSpace: "nowrap" }}>
             TIMELINE · {messages.length} MESSAGES
             {filterLower && filteredMessages.length !== messages.length ? ` · ${filteredMessages.length} shown` : ""}
           </span>
-          <input
-            value={logFilter}
-            onChange={e => setLogFilter(e.target.value)}
-            placeholder="Filter type, summary, party…"
-            style={{ height: "26px", padding: "0 8px", borderRadius: "6px", fontSize: "11px", border: "1px solid " + t.border, background: t.inputBg, color: t.text, outline: "none", width: "200px", flexShrink: 0 }}
-          />
+          <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              <span style={{ fontSize: "10px", color: t.textFaint, whiteSpace: "nowrap" }}>🔴 spike &gt;</span>
+              <input type="number" value={spikeMs} onChange={e => setSpikeMs(Number(e.target.value))} min={1} style={{ width: "52px", height: "24px", padding: "0 4px", fontSize: "11px", border: "1px solid " + t.border, borderRadius: "4px", background: t.inputBg, color: t.text, textAlign: "right" }} />
+              <span style={{ fontSize: "10px", color: t.textFaint }}>ms</span>
+            </div>
+            <input
+              value={logFilter}
+              onChange={e => setLogFilter(e.target.value)}
+              placeholder="Filter…"
+              style={{ height: "26px", padding: "0 8px", borderRadius: "6px", fontSize: "11px", border: "1px solid " + t.border, background: t.inputBg, color: t.text, outline: "none", width: "160px" }}
+            />
+          </div>
         </div>
 
         <Card t={t} style={{ overflow: "hidden", padding: 0 }}>
-          <div style={{ overflowY: "auto", maxHeight: "70vh" }}>
+          <div ref={tableRef} style={{ overflowY: "auto", maxHeight: "70vh" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
               <colgroup>
-                <col style={{ width: "32px" }} />  {/* # */}
-                <col style={{ width: "90px" }} />  {/* Time */}
-                <col style={{ width: "160px" }} /> {/* Type — wider now Direction removed */}
-                <col />                            {/* Summary — flex fill */}
-                <col style={{ width: "54px" }} />  {/* Δt */}
+                <col style={{ width: "32px" }} />
+                <col style={{ width: "90px" }} />
+                <col style={{ width: "160px" }} />
+                <col />
+                <col style={{ width: "54px" }} />
               </colgroup>
               <thead>
                 <tr style={{ background: t.panelAlt, position: "sticky", top: 0, zIndex: 1 }}>
@@ -842,7 +886,7 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
               </thead>
               <tbody>
                 {filteredMessages.map((m) => {
-                  const i = messages.indexOf(m);
+                  const i = m._oi; // original index — O(1), not O(n)
                   const isSel = i === selectedIdx;
                   const isRel = selGroupKey && m.clOrdID && idMap[m.clOrdID] === selGroupKey && !isSel;
                   const timeDelta = i > 0 ? calculateTimeDelta(m.sendingTime, messages[i - 1].sendingTime) : null;
@@ -854,43 +898,30 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
                   return (
                     <tr
                       key={m.logIndex ?? i}
+                      data-idx={i}
                       onClick={() => { setSelectedIdx(i); setDetailMode("table"); setTableFilter(""); }}
-                      style={{
-                        background: rowBg,
-                        borderLeft: "3px solid " + (isSel ? t.accent : isRel ? t.yellow : "transparent"),
-                        cursor: "pointer",
-                        transition: "background 0.08s",
-                      }}
+                      style={{ background: rowBg, borderLeft: "3px solid " + (isSel ? t.accent : isRel ? t.yellow : "transparent"), cursor: "pointer", transition: "background 0.08s" }}
                       onMouseEnter={e => { if (!isSel && !isRel) e.currentTarget.style.background = t.panelAlt; }}
                       onMouseLeave={e => { e.currentTarget.style.background = rowBg; }}
                     >
                       <td style={{ ...cellBase, textAlign: "right", color: t.textFaint, fontFamily: "monospace", paddingRight: "6px" }}>{i + 1}</td>
                       <td style={{ ...cellBase, fontFamily: "monospace", color: t.textMuted, fontSize: "10px", paddingLeft: "8px" }}>{timeStr}</td>
                       <td style={{ ...cellBase, paddingLeft: "8px" }}>
-                        <span style={{
-                          display: "inline-block", fontSize: "10px", fontWeight: 600,
-                          padding: "1px 8px", borderRadius: "20px",
-                          background: badge.bg, color: badge.fg, border: "0.5px solid " + badge.border,
-                          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "152px",
-                        }}>
+                        <span style={{ display: "inline-block", fontSize: "10px", fontWeight: 600, padding: "1px 8px", borderRadius: "20px", background: badge.bg, color: badge.fg, border: "0.5px solid " + badge.border, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "152px" }}>
                           {fullName}
                         </span>
                       </td>
                       <td style={{ ...cellBase, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", paddingLeft: "8px" }}>
                         {m.summary}
                       </td>
-                      <td style={{ ...cellBase, textAlign: "right", fontFamily: "monospace", color: t.purple, fontSize: "10px", paddingRight: "8px" }}>
+                      <td style={{ ...cellBase, textAlign: "right", fontFamily: "monospace", fontSize: "10px", paddingRight: "8px", color: dtColor(timeDelta), fontWeight: timeDelta && parseFloat(timeDelta) * (timeDelta.includes("s") && !timeDelta.includes("ms") ? 1000 : 1) >= spikeMs ? 700 : 400 }}>
                         {timeDelta || "—"}
                       </td>
                     </tr>
                   );
                 })}
                 {filteredMessages.length === 0 && (
-                  <tr>
-                    <td colSpan={5} style={{ padding: "24px", textAlign: "center", color: t.textFaint, fontSize: "12px" }}>
-                      No messages match "{logFilter}"
-                    </td>
-                  </tr>
+                  <tr><td colSpan={5} style={{ padding: "24px", textAlign: "center", color: t.textFaint, fontSize: "12px" }}>No messages match "{logFilter}"</td></tr>
                 )}
               </tbody>
             </table>
@@ -940,24 +971,34 @@ function UnifiedInput({ t, onSingleResult, onLogResult, onClearAll, input, setIn
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [fileName, setFileName] = useState(null);
+  const [history, setHistory] = useState(() => { try { return JSON.parse(localStorage.getItem("fix-history") || "[]"); } catch { return []; } });
+  const [showHistory, setShowHistory] = useState(false);
   const fileRef = useRef(null);
 
   const isLog = countFixStarts(input) > 1;
   const mode = input.trim() ? (isLog ? "log" : "single") : null;
   const containsSOH = input.includes("\x01");
 
-  const convertSOHToPipes = () => {
-    setInput(input.replace(/\x01/g, "|"));
+  // SOH conversion: keep textarea unchanged, convert internally before sending
+  const normalizeForSend = (text) => text.replace(/\x01/g, "|");
+
+  const saveHistory = (text) => {
+    const entry = { text, time: Date.now(), count: countFixStarts(text), label: fileName || (text.slice(0, 60) + "…") };
+    const next = [entry, ...history.filter(h => h.text !== text)].slice(0, 10);
+    setHistory(next);
+    localStorage.setItem("fix-history", JSON.stringify(next));
   };
 
   const handleFile = e => {
     const f = e.target.files && e.target.files[0];
     if (!f) return;
-    if (![".txt", ".log"].some(x => f.name.toLowerCase().endsWith(x))) {
-      setError("Upload a .txt or .log file"); e.target.value = ""; return;
-    }
+    // Accept by content, not just extension — FIX logs come as .txt .log .fix .csv or no extension
     const r = new FileReader();
-    r.onload = ev => { setInput(ev.target.result); setFileName(f.name); setError(null); };
+    r.onload = ev => {
+      const text = ev.target.result;
+      if (!text.includes("8=FIX")) { setError("File does not appear to contain FIX messages (no '8=FIX' found)."); e.target.value = ""; return; }
+      setInput(text); setFileName(f.name); setError(null);
+    };
     r.readAsText(f);
     e.target.value = "";
   };
@@ -965,37 +1006,68 @@ function UnifiedInput({ t, onSingleResult, onLogResult, onClearAll, input, setIn
   const handleSubmit = async () => {
     if (!input.trim()) return;
     setLoading(true); setError(null);
+    const body = normalizeForSend(input);
     try {
       if (isLog) {
-        const res = await fetch(API_LOG, { method: "POST", headers: { "Content-Type": "text/plain" }, body: input });
+        const res = await fetch(API_LOG, { method: "POST", headers: { "Content-Type": "text/plain" }, body });
+        if (!res.ok) { const d = await res.json().catch(() => ({})); setError(d.message || `Server error ${res.status}`); return; }
         const d = await res.json();
+        saveHistory(input);
         onLogResult(d.messages, input);
       } else {
-        const res = await fetch(API, { method: "POST", headers: { "Content-Type": "text/plain" }, body: input });
+        const res = await fetch(API, { method: "POST", headers: { "Content-Type": "text/plain" }, body });
+        if (!res.ok) { const d = await res.json().catch(() => ({})); setError(d.message || `Server error ${res.status}`); return; }
         const d = await res.json();
+        saveHistory(input);
         onSingleResult(d, input);
       }
-    } catch (e) {
+    } catch {
       setError("Could not reach the backend. If this is the first request in a while, the service may be cold-starting (~30s). Please try again.");
     } finally { setLoading(false); }
   };
 
   return (
     <Card t={t}>
-      <div style={{ padding: "14px 18px", borderBottom: "1px solid " + t.border, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div style={{ padding: "14px 18px", borderBottom: "1px solid " + t.border, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <div>
             <div style={{ fontSize: "13px", fontWeight: 600, color: t.text }}>Paste a FIX message or log</div>
             <div style={{ fontSize: "11px", color: t.textMuted, marginTop: "1px" }}>Secure SSL TLS encrypted verification engine</div>
           </div>
           {containsSOH && (
-            <button onClick={convertSOHToPipes} style={{ padding: "3px 8px", background: t.yellowBg, color: t.yellow, border: "1px solid " + t.yellow, borderRadius: "4px", fontSize: "11px", fontWeight: 600, cursor: "pointer" }}>⚠️ Hidden SOH Detected · Click to Fix</button>
+            <span style={{ padding: "3px 8px", background: t.yellowBg, color: t.yellow, border: "1px solid " + t.yellow, borderRadius: "4px", fontSize: "11px", fontWeight: 600 }}>⚠️ SOH detected — auto-converts on parse</span>
           )}
         </div>
-        <div style={{ display: "flex", gap: "6px" }}>
+        <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
           {mode && <span style={{ fontSize: "10px", fontWeight: 700, padding: "3px 8px", borderRadius: "20px", background: mode === "log" ? t.purpleBg : t.accentBg, color: mode === "log" ? t.purple : t.accent, border: "1px solid " + (mode === "log" ? t.purple : t.accent) }}>{mode === "log" ? "LOG · " + countFixStarts(input) + " MSG" : "SINGLE MSG"}</span>}
+
+          {history.length > 0 && (
+            <div style={{ position: "relative" }}>
+              <Btn t={t} onClick={() => setShowHistory(v => !v)}>🕐 History</Btn>
+              {showHistory && (
+                <div style={{ position: "absolute", right: 0, top: "36px", zIndex: 50, background: t.panel, border: "1px solid " + t.border, borderRadius: "8px", boxShadow: t.shadowMd, minWidth: "300px", maxHeight: "280px", overflowY: "auto" }}>
+                  {history.map((h, i) => (
+                    <div key={i} onClick={() => { setInput(h.text); setShowHistory(false); setFileName(null); setError(null); }}
+                      style={{ padding: "8px 12px", cursor: "pointer", borderBottom: i < history.length - 1 ? "1px solid " + t.borderSub : "none" }}
+                      onMouseEnter={e => e.currentTarget.style.background = t.panelAlt}
+                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                    >
+                      <div style={{ fontSize: "11px", color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.label}</div>
+                      <div style={{ fontSize: "10px", color: t.textFaint, marginTop: "2px" }}>{new Date(h.time).toLocaleString()} · {h.count} msg{h.count !== 1 ? "s" : ""}</div>
+                    </div>
+                  ))}
+                  <div onClick={() => { setHistory([]); localStorage.removeItem("fix-history"); setShowHistory(false); }}
+                    style={{ padding: "8px 12px", cursor: "pointer", color: t.red, fontSize: "11px", textAlign: "center", borderTop: "1px solid " + t.border }}
+                    onMouseEnter={e => e.currentTarget.style.background = t.redBg}
+                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                  >Clear history</div>
+                </div>
+              )}
+            </div>
+          )}
+
           <Btn t={t} onClick={() => fileRef.current && fileRef.current.click()}>📁 Upload</Btn>
-          <input ref={fileRef} type="file" accept=".txt,.log" onChange={handleFile} style={{ display: "none" }} />
+          <input ref={fileRef} type="file" accept=".txt,.log,.fix,.csv" onChange={handleFile} style={{ display: "none" }} />
           <Btn t={t} onClick={() => { setInput("8=FIX.4.2|9=458|35=W|34=3|49=TT_PRICE|52=20260615-10:25:15.627|56=QALGOMARKET|15=USD|48=14347306835933645772|55=GC|100=XCEC|107=Gold 100 oz|167=FUT|200=202608|205=27|207=CME|262=218888029250001|268=10|269=0|270=43593|271=3|290=1|269=1|270=43598|271=1|290=1|269=Y|270=43591|271=1|290=1|269=Z|270=43603|271=1|290=1|269=B|271=58663|269=x|270=43597|271=1|269=6|270=42388|272=20260612|273=00:00:00|269=4|270=42894|269=7|270=43661|269=8|270=42834|460=2|461=F|541=20260827|18211=M|10=180|"); setFileName(null); setError(null); }}>Sample Group</Btn>
           <Btn t={t} onClick={() => { setInput(["8=FIX.4.4|9=61|35=A|49=EXEC|56=BANZAI|34=1|52=20260613-23:24:06|10=097|","8=FIX.4.4|9=116|35=D|49=BANZAI|56=EXEC|34=2|52=20260613-23:24:42|11=ORD1001|55=MSFT|54=1|38=10000|40=2|44=12.3|10=199|","8=FIX.4.4|9=123|35=8|49=EXEC|56=BANZAI|34=2|52=20260613-23:24:42|37=EXECORD1|11=ORD1001|17=EXEC1|150=0|39=0|55=MSFT|10=233|"].join("\n")); setFileName(null); setError(null); }}>Sample log</Btn>
           {input && <Btn t={t} onClick={() => { setInput(""); setFileName(null); setError(null); onClearAll(); }}>Clear</Btn>}
@@ -1078,8 +1150,13 @@ function PopularTagsGrid({ t, onTagClick }) {
 
 // ─── Root App ─────────────────────────────────────────────────────────────────
 export default function App() {
-  const [themeName, setThemeName] = useState("dark");
+  const [themeName, setThemeName] = useState(() => localStorage.getItem("fix-theme") || "dark");
   const t = T[themeName];
+  const toggleTheme = () => setThemeName(n => {
+    const next = n === "dark" ? "light" : "dark";
+    localStorage.setItem("fix-theme", next);
+    return next;
+  });
 
   const [textareaInput, setTextareaInput] = useState("");
   const [singleResult, setSingleResult] = useState(null);
@@ -1109,13 +1186,14 @@ export default function App() {
     document.title = "FIX Protocol Parser & Analyzer";
   }, []);
 
-  // Shortcuts Key Handler Focus Shortcut ('/')
+  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === "/" && document.activeElement?.tagName !== "TEXTAREA" && document.activeElement?.tagName !== "INPUT") {
-        e.preventDefault();
-        if (filterRef.current) filterRef.current.focus();
-      }
+      const inInput = document.activeElement?.tagName === "TEXTAREA" || document.activeElement?.tagName === "INPUT";
+      // '/' → focus field filter
+      if (e.key === "/" && !inInput) { e.preventDefault(); if (filterRef.current) filterRef.current.focus(); }
+      // Escape → close tag panel
+      if (e.key === "Escape") { setTagPanel(null); }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
@@ -1171,7 +1249,7 @@ export default function App() {
 
           <div style={{ flex: 1 }} />
           <HeaderTagSearch t={t} onResult={f => setTagPanel(f)} />
-          <button onClick={() => setThemeName(n => n === "dark" ? "light" : "dark")} style={{ height: "32px", padding: "0 12px", borderRadius: "6px", fontSize: "12px", border: "1px solid " + t.border, background: "transparent", color: t.textMuted, cursor: "pointer" }}>
+          <button onClick={toggleTheme} style={{ height: "32px", padding: "0 12px", borderRadius: "6px", fontSize: "12px", border: "1px solid " + t.border, background: "transparent", color: t.textMuted, cursor: "pointer" }}>
             {themeName === "dark" ? "☀ Light" : "🌙 Dark"}
           </button>
         </header>
