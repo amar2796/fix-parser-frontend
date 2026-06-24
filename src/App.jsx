@@ -429,24 +429,28 @@ function FieldTable({ rows, sectionKey, t, onTagClick, filterText, isOpen, onTog
 // ─── FieldSections — sticky jump bar + three accordion FieldTables ────────────
 function FieldSections({ result, t, onTagClick, filterText }) {
   const SECTIONS = ["header", "body", "trailer"];
+  // All open by default — user closes manually
   const [openMap, setOpenMap] = useState({ header: true, body: true, trailer: true });
   const refs = { header: useRef(null), body: useRef(null), trailer: useRef(null) };
 
   const toggle = (key) => setOpenMap(prev => ({ ...prev, [key]: !prev[key] }));
 
+  // Jump bar button: if already open → just scroll; if closed → open then scroll
   const jumpTo = (key) => {
-    // Open if closed, then scroll into view
-    setOpenMap(prev => ({ ...prev, [key]: true }));
-    setTimeout(() => {
+    if (!openMap[key]) {
+      setOpenMap(prev => ({ ...prev, [key]: true }));
+      setTimeout(() => refs[key].current?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+    } else {
       refs[key].current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 60);
+    }
   };
 
   const hasRows = (key) => result.components[key] && result.components[key].length > 0;
+  const anyOpen = SECTIONS.some(k => openMap[k]);
 
   return (
     <div>
-      {/* ── Sticky jump bar ── */}
+      {/* ── Sticky jump + toggle bar ── */}
       <div style={{
         display: "flex", alignItems: "center", gap: "6px",
         padding: "6px 0", marginBottom: "10px",
@@ -454,42 +458,66 @@ function FieldSections({ result, t, onTagClick, filterText }) {
         background: t.page,
         borderBottom: "1px solid " + t.borderSub,
       }}>
-        <span style={{ fontSize: "10px", color: t.textFaint, marginRight: "4px", letterSpacing: "0.3px" }}>JUMP TO</span>
+        <span style={{ fontSize: "10px", color: t.textFaint, marginRight: "2px", letterSpacing: "0.3px", whiteSpace: "nowrap" }}>JUMP TO</span>
+
         {SECTIONS.map(key => {
           if (!hasRows(key)) return null;
           const sc = t.sections[key];
           const count = (result.components[key] || []).length;
+          const open = openMap[key];
           return (
-            <button
-              key={key}
-              onClick={() => jumpTo(key)}
-              style={{
-                display: "flex", alignItems: "center", gap: "5px",
-                padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 600,
-                border: "1px solid " + sc.border,
-                background: openMap[key] ? sc.border : "transparent",
-                color: openMap[key] ? "#fff" : sc.border,
-                cursor: "pointer", transition: "all 0.15s",
-              }}
-            >
-              {sc.label}
-              <span style={{
-                fontSize: "10px", padding: "0 5px", borderRadius: "20px",
-                background: openMap[key] ? "rgba(255,255,255,0.25)" : t.panelAlt,
-                color: openMap[key] ? "#fff" : t.textFaint,
-              }}>{count}</span>
-            </button>
+            <div key={key} style={{ display: "flex", alignItems: "center", borderRadius: "20px", border: "1px solid " + sc.border, overflow: "hidden", flexShrink: 0 }}>
+              {/* Jump arrow — scroll to section */}
+              <button
+                onClick={() => jumpTo(key)}
+                title={"Scroll to " + sc.label}
+                style={{
+                  display: "flex", alignItems: "center", gap: "5px",
+                  padding: "3px 8px 3px 10px",
+                  background: open ? sc.border : "transparent",
+                  color: open ? "#fff" : sc.border,
+                  border: "none", cursor: "pointer",
+                  fontSize: "11px", fontWeight: 600,
+                  transition: "all 0.15s",
+                }}
+              >
+                {sc.label}
+                <span style={{
+                  fontSize: "10px", padding: "0 5px", borderRadius: "20px",
+                  background: open ? "rgba(255,255,255,0.25)" : t.panelAlt,
+                  color: open ? "#fff" : t.textFaint,
+                }}>{count}</span>
+              </button>
+              {/* Divider */}
+              <div style={{ width: "1px", height: "18px", background: open ? "rgba(255,255,255,0.3)" : sc.border + "66" }} />
+              {/* Toggle chevron */}
+              <button
+                onClick={() => toggle(key)}
+                title={open ? "Collapse " + sc.label : "Expand " + sc.label}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  padding: "3px 7px",
+                  background: open ? sc.border : "transparent",
+                  color: open ? "#fff" : sc.border,
+                  border: "none", cursor: "pointer",
+                  transition: "all 0.15s",
+                }}
+              >
+                <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                  <path d="M2 4l3.5 3.5L9 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+                    style={{ transition: "transform 0.2s", transformOrigin: "center", transform: open ? "rotate(180deg)" : "rotate(0deg)", display: "block" }} />
+                </svg>
+              </button>
+            </div>
           );
         })}
-        {/* Collapse / expand all */}
+
+        {/* Collapse all / Expand all */}
         <button
-          onClick={() => {
-            const anyOpen = SECTIONS.some(k => openMap[k]);
-            setOpenMap({ header: !anyOpen, body: !anyOpen, trailer: !anyOpen });
-          }}
-          style={{ marginLeft: "auto", fontSize: "10px", padding: "3px 8px", borderRadius: "6px", border: "1px solid " + t.border, background: "transparent", color: t.textFaint, cursor: "pointer" }}
+          onClick={() => setOpenMap({ header: !anyOpen, body: !anyOpen, trailer: !anyOpen })}
+          style={{ marginLeft: "auto", fontSize: "10px", padding: "3px 8px", borderRadius: "6px", border: "1px solid " + t.border, background: "transparent", color: t.textFaint, cursor: "pointer", whiteSpace: "nowrap" }}
         >
-          {SECTIONS.some(k => openMap[k]) ? "Collapse all" : "Expand all"}
+          {anyOpen ? "Collapse all" : "Expand all"}
         </button>
       </div>
 
