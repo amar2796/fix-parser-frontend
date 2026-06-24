@@ -348,62 +348,86 @@ function FieldTable({ rows, sectionKey, t, onTagClick, filterText }) {
     }
   });
 
-  const renderRawTable = (fieldsList) => (
-    <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
-      <colgroup>
-        <col style={{ width: "52px" }} />   {/* Tag */}
-        <col style={{ width: "190px" }} />  {/* Field Name */}
-        <col style={{ width: "180px" }} />  {/* Raw Value */}
-        <col />                             {/* Meaning — flex fill */}
-        <col style={{ width: "32px" }} />   {/* ↗ button */}
-      </colgroup>
-      <thead>
-        <tr style={{ borderBottom: "1px solid " + t.border }}>
-          {["Tag", "Field Name", "Raw Value", "Meaning", ""].map((h, i) => (
-            <th key={i} style={{ padding: "6px 10px", textAlign: "left", fontSize: "10px", fontWeight: 600, color: t.textFaint, letterSpacing: "0.4px", whiteSpace: "nowrap" }}>{h}</th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {fieldsList.map((r, i) => (
-          <tr key={i} style={{ borderBottom: i < fieldsList.length - 1 ? "1px solid " + t.borderSub : "none" }}>
-            <td style={{ padding: "6px 10px", fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace", fontSize: "11px", fontWeight: 700, color: sc.text, whiteSpace: "nowrap" }}>{r.tag}</td>
-            <td style={{ padding: "6px 10px", fontSize: "12px", color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {r.name}
-              {r.isUnknownTag && <span style={{ fontSize: "10px", color: t.red, marginLeft: "5px" }}>unknown</span>}
-            </td>
-            <td style={{ padding: "6px 10px", fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace", fontSize: "11px", color: t.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.raw}</td>
-            <td style={{ padding: "6px 10px", fontSize: "12px", color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.meaning}</td>
-            <td style={{ padding: "6px 4px", textAlign: "center" }}>
-              <button onClick={() => onTagClick && onTagClick(r)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "11px", color: t.accent, padding: "2px 4px", borderRadius: "4px" }}>↗</button>
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+  // Render a single unified table covering base fields + all repeating groups.
+  // One <colgroup> means every column is the same width throughout — no misalignment.
+  const groupKeys = Object.keys(groupsMap);
+
+  const renderRow = (r, i, lastInSection) => (
+    <tr
+      key={i}
+      style={{ borderBottom: lastInSection ? "none" : "1px solid " + t.borderSub }}
+    >
+      <td style={{ padding: "6px 10px", fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace", fontSize: "11px", fontWeight: 700, color: sc.text, whiteSpace: "nowrap" }}>{r.tag}</td>
+      <td style={{ padding: "6px 10px", fontSize: "12px", color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {r.name}
+        {r.isUnknownTag && <span style={{ fontSize: "10px", color: t.red, marginLeft: "5px" }}>unknown</span>}
+      </td>
+      <td style={{ padding: "6px 10px", fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace", fontSize: "11px", color: t.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.raw}</td>
+      <td style={{ padding: "6px 10px", fontSize: "12px", color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.meaning}</td>
+      <td style={{ padding: "6px 4px", textAlign: "center" }}>
+        <button onClick={() => onTagClick && onTagClick(r)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "11px", color: t.accent, padding: "2px 4px", borderRadius: "4px" }}>↗</button>
+      </td>
+    </tr>
+  );
+
+  const groupDivider = (gIdx) => (
+    <tr key={"g-hdr-" + gIdx}>
+      <td colSpan={5} style={{
+        padding: "4px 10px",
+        background: t.panelAlt,
+        borderTop: "1px solid " + t.border,
+        borderBottom: "1px solid " + t.border,
+        borderLeft: "3px solid " + t.purple,
+        fontSize: "10px", fontWeight: 700, color: t.purple,
+        letterSpacing: "0.5px", textTransform: "uppercase",
+      }}>
+        📦 Repeating Group Entry #{parseInt(gIdx) + 1}
+      </td>
+    </tr>
   );
 
   return (
     <div style={{ marginBottom: "14px" }}>
+      {/* Section header bar */}
       <div style={{
         display: "flex", alignItems: "center", gap: "8px",
         padding: "5px 12px", borderRadius: "6px 6px 0 0", background: sc.border,
       }}>
         <span style={{ fontSize: "11px", fontWeight: 700, color: "#fff", letterSpacing: "0.8px" }}>{sc.label}</span>
-        <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.6)" }}>{filteredRows.length} field{rows.length !== 1 ? "s" : ""}</span>
+        <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.6)" }}>{filteredRows.length} field{filteredRows.length !== 1 ? "s" : ""}</span>
       </div>
-      
+
+      {/* Single unified table — one colgroup rules all rows */}
       <div style={{ border: "1px solid " + t.border, borderTop: "none", borderRadius: "0 0 6px 6px", background: t.panel, overflow: "hidden" }}>
-        {baseFields.length > 0 && renderRawTable(baseFields)}
-        
-        {Object.keys(groupsMap).map((gIdx) => (
-          <div key={gIdx} style={{ margin: "10px", padding: "10px", background: t.panelAlt, borderLeft: "3px solid " + t.purple, borderRadius: "6px", boxShadow: t.shadow }}>
-            <div style={{ fontSize: "10px", fontWeight: 700, color: t.purple, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "8px" }}>
-              📦 Repeating Entry Sequence Block #{parseInt(gIdx) + 1}
-            </div>
-            {renderRawTable(groupsMap[gIdx])}
-          </div>
-        ))}
+        <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+          <colgroup>
+            <col style={{ width: "52px" }} />   {/* Tag */}
+            <col style={{ width: "190px" }} />  {/* Field Name */}
+            <col style={{ width: "180px" }} />  {/* Raw Value */}
+            <col />                             {/* Meaning */}
+            <col style={{ width: "32px" }} />   {/* ↗ */}
+          </colgroup>
+          <thead>
+            <tr style={{ borderBottom: "1px solid " + t.border }}>
+              {["Tag", "Field Name", "Raw Value", "Meaning", ""].map((h, i) => (
+                <th key={i} style={{ padding: "6px 10px", textAlign: "left", fontSize: "10px", fontWeight: 600, color: t.textFaint, letterSpacing: "0.4px", whiteSpace: "nowrap" }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {/* Base fields */}
+            {baseFields.map((r, i) => renderRow(r, "b" + i, i === baseFields.length - 1 && groupKeys.length === 0))}
+
+            {/* Repeating groups — each gets a divider row then its fields */}
+            {groupKeys.map((gIdx) => {
+              const fields = groupsMap[gIdx];
+              return [
+                groupDivider(gIdx),
+                ...fields.map((r, i) => renderRow(r, "g" + gIdx + "-" + i, i === fields.length - 1)),
+              ];
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );
