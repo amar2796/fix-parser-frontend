@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 
 // ─── Backend URLs ─────────────────────────────────────────────────────────────
 const API     = "https://fix-parser-backend.onrender.com/api/parse";
@@ -429,9 +429,11 @@ function FieldTable({ rows, sectionKey, t, onTagClick, filterText, isOpen, onTog
 // ─── FieldSections — sticky jump bar + three accordion FieldTables ────────────
 function FieldSections({ result, t, onTagClick, filterText }) {
   const SECTIONS = ["header", "body", "trailer"];
-  // All open by default — user closes manually
   const [openMap, setOpenMap] = useState({ header: true, body: true, trailer: true });
-  const refs = { header: useRef(null), body: useRef(null), trailer: useRef(null) };
+  const headerRef = useRef(null);
+  const bodyRef = useRef(null);
+  const trailerRef = useRef(null);
+  const refs = { header: headerRef, body: bodyRef, trailer: trailerRef };
 
   const toggle = (key) => setOpenMap(prev => ({ ...prev, [key]: !prev[key] }));
 
@@ -641,29 +643,61 @@ function Walkthrough({ result, originalInput, t }) {
 // Slide-in drawer component for looking up extensive tag definitions
 function TagPanel({ field, onClose, t }) {
   if (!field) return null;
+
+  // Close on Escape key
+  useEffect(() => {
+    const h = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", h);
+    return () => document.removeEventListener("keydown", h);
+  }, [onClose]);
+
   return (
-    <div style={{
-      position: "fixed", top: 0, right: 0, bottom: 0, width: "380px",
-      background: t.panel, borderLeft: "1px solid " + t.border,
-      boxShadow: t.shadowMd, zIndex: 200, display: "flex", flexDirection: "column",
-    }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", borderBottom: "1px solid " + t.border }}>
-        <span style={{ fontSize: "13px", fontWeight: 600, color: t.text }}>Tag Reference</span>
-        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: t.textMuted, fontSize: "20px" }}>×</button>
-      </div>
-      <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
-        <div style={{ display: "flex", gap: "16px", alignItems: "baseline", marginBottom: "20px" }}>
-          <span style={{ fontFamily: "monospace", fontSize: "40px", fontWeight: 700, color: t.accent }}>{field.tag}</span>
-          <span style={{ fontSize: "22px", fontWeight: 700, color: t.text }}>{field.name}</span>
+    <>
+      {/* Backdrop — click outside to close */}
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 199, background: "transparent" }} />
+      {/* Panel */}
+      <div style={{
+        position: "fixed", top: 0, right: 0, bottom: 0, width: "380px",
+        background: t.panel, borderLeft: "1px solid " + t.border,
+        boxShadow: t.shadowMd, zIndex: 200, display: "flex", flexDirection: "column",
+        animation: "slideIn 0.18s ease",
+      }}>
+        <style>{`@keyframes slideIn { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }`}</style>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", borderBottom: "1px solid " + t.border }}>
+          <span style={{ fontSize: "13px", fontWeight: 600, color: t.text }}>Tag Reference</span>
+          <button onClick={onClose} aria-label="Close tag panel" style={{ background: "none", border: "none", cursor: "pointer", color: t.textMuted, fontSize: "20px", lineHeight: 1 }}>×</button>
         </div>
-        {field.why && (
-          <div style={{ borderLeft: "3px solid " + t.accent, padding: "10px 14px", background: t.panelAlt, borderRadius: "0 8px 8px 0" }}>
-            <div style={{ fontSize: "10px", fontWeight: 700, color: t.accent }}>WHY THIS MATTERS</div>
-            <div style={{ fontSize: "13px", color: t.textMuted, marginTop: "4px" }}>{field.why}</div>
+        <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
+          <div style={{ display: "flex", gap: "16px", alignItems: "baseline", marginBottom: "20px" }}>
+            <span style={{ fontFamily: "monospace", fontSize: "40px", fontWeight: 700, color: t.accent }}>{field.tag}</span>
+            <span style={{ fontSize: "22px", fontWeight: 700, color: t.text }}>{field.name}</span>
           </div>
-        )}
+          {field.why && (
+            <div style={{ borderLeft: "3px solid " + t.accent, padding: "10px 14px", background: t.panelAlt, borderRadius: "0 8px 8px 0", marginBottom: "16px" }}>
+              <div style={{ fontSize: "10px", fontWeight: 700, color: t.accent, letterSpacing: "0.5px" }}>WHY THIS MATTERS</div>
+              <div style={{ fontSize: "13px", color: t.textMuted, marginTop: "4px" }}>{field.why}</div>
+            </div>
+          )}
+          {field.raw !== undefined && (
+            <div style={{ marginBottom: "12px" }}>
+              <div style={{ fontSize: "10px", color: t.textFaint, marginBottom: "4px", letterSpacing: "0.4px" }}>RAW VALUE</div>
+              <div style={{ fontFamily: "monospace", fontSize: "14px", color: t.text, background: t.panelAlt, padding: "6px 10px", borderRadius: "6px", border: "1px solid " + t.border }}>{field.raw || "—"}</div>
+            </div>
+          )}
+          {field.meaning && field.meaning !== field.raw && (
+            <div style={{ marginBottom: "12px" }}>
+              <div style={{ fontSize: "10px", color: t.textFaint, marginBottom: "4px", letterSpacing: "0.4px" }}>DECODED MEANING</div>
+              <div style={{ fontSize: "14px", color: t.green, fontWeight: 600 }}>{field.meaning}</div>
+            </div>
+          )}
+          {field.referenceUrl && (
+            <a href={field.referenceUrl} target="_blank" rel="noreferrer" style={{ fontSize: "12px", color: t.accent, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "4px", marginTop: "8px" }}>
+              View FIX dictionary ↗
+            </a>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -671,27 +705,46 @@ function TagPanel({ field, onClose, t }) {
 function HeaderTagSearch({ t, onResult }) {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const doSearch = useCallback(async (tagNum) => {
     if (!/^\d+$/.test(String(tagNum).trim())) return;
-    setLoading(true);
+    setLoading(true); setError(null);
     try {
       const syn = "8=FIX.4.4|9=10|35=0|" + tagNum + "=X|10=000|";
       const res = await fetch(API, { method: "POST", headers: { "Content-Type": "text/plain" }, body: syn });
+      if (!res.ok) throw new Error("HTTP " + res.status);
       const d = await res.json();
       const f = d.sequence ? d.sequence.find(f => String(f.tag) === String(tagNum)) : null;
-      if (f) onResult(f);
-    } catch { /* silent */ }
-    finally { setLoading(false); }
+      if (f) { onResult(f); setQuery(""); }
+      else setError("Tag " + tagNum + " not found");
+    } catch {
+      setError("Backend unavailable — may be cold-starting (~30s)");
+    } finally { setLoading(false); }
   }, [onResult]);
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-      <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-        <span style={{ position: "absolute", left: "10px", fontSize: "12px", color: t.textFaint }}>⌗</span>
-        <input value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === "Enter") doSearch(query); }} placeholder="Tag lookup…" style={{ paddingLeft: "28px", height: "32px", borderRadius: "6px", fontSize: "12px", width: "140px", border: "1px solid " + t.border, background: t.inputBg, color: t.text, outline: "none" }} />
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "3px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+        <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+          <span style={{ position: "absolute", left: "10px", fontSize: "12px", color: t.textFaint }}>⌗</span>
+          <input
+            value={query}
+            onChange={e => { setQuery(e.target.value); setError(null); }}
+            onKeyDown={e => { if (e.key === "Enter") doSearch(query); }}
+            placeholder="Tag lookup…"
+            style={{ paddingLeft: "28px", height: "32px", borderRadius: "6px", fontSize: "12px", width: "140px", border: "1px solid " + (error ? t.red : t.border), background: t.inputBg, color: t.text, outline: "none" }}
+          />
+        </div>
+        <button
+          onClick={() => doSearch(query)}
+          disabled={loading}
+          style={{ height: "32px", padding: "0 12px", borderRadius: "6px", fontSize: "12px", background: t.accentBg, color: t.accent, border: "1px solid " + t.accent, cursor: loading ? "wait" : "pointer", opacity: loading ? 0.7 : 1 }}
+        >
+          {loading ? "…" : "Look up"}
+        </button>
       </div>
-      <button onClick={() => doSearch(query)} style={{ height: "32px", padding: "0 12px", borderRadius: "6px", fontSize: "12px", background: t.accentBg, color: t.accent, border: "1px solid " + t.accent, cursor: "pointer" }}>Look up</button>
+      {error && <div style={{ fontSize: "10px", color: t.red, maxWidth: "220px", textAlign: "right" }}>{error}</div>}
     </div>
   );
 }
@@ -744,7 +797,113 @@ function SingleResult({ result, originalInput, t, onTagClick, filterRef, tableFi
   );
 }
 
-// ─── MsgType abbreviation map for the log table ──────────────────────────────
+// ─── Session Statistics Panel ─────────────────────────────────────────────────
+function SessionStats({ messages, t }) {
+  const stats = useMemo(() => {
+    const typeCounts = {};
+    let minDt = Infinity, maxDt = 0, totalDt = 0, dtCount = 0;
+    let errorCount = 0;
+    const symbols = new Set();
+    let start = null, end = null;
+
+    messages.forEach((m, i) => {
+      // message type counts
+      const name = m.msgTypeName || m.msgType || "Unknown";
+      typeCounts[name] = (typeCounts[name] || 0) + 1;
+      // validation errors
+      if (m.validationErrors && m.validationErrors.length > 0) errorCount++;
+      // symbols
+      if (m.symbol) symbols.add(m.symbol);
+      // latency
+      if (i > 0) {
+        const dt = (() => {
+          try {
+            const toMs = (s) => {
+              const full = /^(\d{4})(\d{2})(\d{2})-(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?$/.exec(s);
+              if (full) { const [,yr,mo,dy,h,mm,sec,frac] = full; return new Date(`${yr}-${mo}-${dy}T${h}:${mm}:${sec}`).getTime() + (frac ? parseInt(frac.padEnd(3,"0").slice(0,3)) : 0); }
+              return NaN;
+            };
+            const diff = toMs(m.sendingTime) - toMs(messages[i-1].sendingTime);
+            return isNaN(diff) || diff < 0 ? null : diff;
+          } catch { return null; }
+        })();
+        if (dt !== null) { minDt = Math.min(minDt, dt); maxDt = Math.max(maxDt, dt); totalDt += dt; dtCount++; }
+      }
+      // session time range
+      if (m.sendingTime) { if (!start) start = m.sendingTime; end = m.sendingTime; }
+    });
+
+    const avgDt = dtCount > 0 ? totalDt / dtCount : 0;
+    const fmtMs = ms => ms === Infinity || ms === 0 ? "—" : ms < 1000 ? ms.toFixed(0) + "ms" : (ms / 1000).toFixed(2) + "s";
+    const duration = (() => {
+      if (!start || !end) return "—";
+      try {
+        const toMs = (s) => { const full = /^(\d{4})(\d{2})(\d{2})-(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?$/.exec(s); if (full) { const [,yr,mo,dy,h,mm,sec] = full; return new Date(`${yr}-${mo}-${dy}T${h}:${mm}:${sec}`).getTime(); } return NaN; };
+        const ms = toMs(end) - toMs(start);
+        if (isNaN(ms) || ms < 0) return "—";
+        if (ms < 60000) return (ms/1000).toFixed(1) + "s";
+        return Math.floor(ms/60000) + "m " + ((ms%60000)/1000).toFixed(0) + "s";
+      } catch { return "—"; }
+    })();
+
+    // top 5 message types
+    const topTypes = Object.entries(typeCounts).sort((a,b) => b[1]-a[1]).slice(0, 6);
+    const maxCount = topTypes[0]?.[1] || 1;
+
+    return { typeCounts, topTypes, maxCount, minDt, maxDt, avgDt, fmtMs, errorCount, symbols, duration, dtCount };
+  }, [messages]);
+
+  const statCard = (label, value, color) => (
+    <div style={{ background: t.panel, border: "1px solid " + t.border, borderRadius: "8px", padding: "10px 14px", flex: "1 1 120px" }}>
+      <div style={{ fontSize: "10px", color: t.textFaint, letterSpacing: "0.4px", marginBottom: "4px" }}>{label}</div>
+      <div style={{ fontSize: "18px", fontWeight: 700, color: color || t.text, fontFamily: "monospace" }}>{value}</div>
+    </div>
+  );
+
+  return (
+    <div style={{ marginBottom: "16px", background: t.panel, border: "1px solid " + t.border, borderRadius: "10px", overflow: "hidden" }}>
+      {/* Header */}
+      <div style={{ padding: "8px 16px", background: t.panelAlt, borderBottom: "1px solid " + t.border, fontSize: "11px", fontWeight: 600, color: t.textMuted, letterSpacing: "0.5px" }}>
+        SESSION OVERVIEW
+      </div>
+      <div style={{ padding: "14px 16px" }}>
+        {/* Stat cards row */}
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "16px" }}>
+          {statCard("MESSAGES", messages.length)}
+          {statCard("DURATION", stats.duration)}
+          {statCard("AVG LATENCY", stats.fmtMs(stats.avgDt))}
+          {statCard("MIN LATENCY", stats.fmtMs(stats.minDt))}
+          {statCard("MAX LATENCY", stats.fmtMs(stats.maxDt), stats.maxDt > 1000 ? t.red : stats.maxDt > 500 ? t.yellow : t.green)}
+          {statCard("ERRORS", stats.errorCount, stats.errorCount > 0 ? t.red : t.green)}
+          {stats.symbols.size > 0 && statCard("SYMBOLS", stats.symbols.size)}
+        </div>
+
+        {/* Message type breakdown bar chart */}
+        <div style={{ fontSize: "10px", color: t.textFaint, letterSpacing: "0.4px", marginBottom: "8px" }}>MESSAGE TYPE BREAKDOWN</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+          {stats.topTypes.map(([name, count]) => {
+            const badge = badgeFor(name, t);
+            const pct = Math.round((count / stats.maxCount) * 100);
+            return (
+              <div key={name} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ fontSize: "10px", fontWeight: 600, padding: "1px 7px", borderRadius: "20px", background: badge.bg, color: badge.fg, border: "0.5px solid " + badge.border, whiteSpace: "nowrap", minWidth: "130px", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</span>
+                <div style={{ flex: 1, height: "6px", background: t.borderSub, borderRadius: "3px", overflow: "hidden" }}>
+                  <div style={{ width: pct + "%", height: "100%", background: badge.border, borderRadius: "3px", transition: "width 0.3s ease" }} />
+                </div>
+                <span style={{ fontSize: "11px", color: t.textMuted, fontFamily: "monospace", minWidth: "28px", textAlign: "right" }}>{count}</span>
+              </div>
+            );
+          })}
+        </div>
+        {stats.symbols.size > 0 && (
+          <div style={{ marginTop: "12px", fontSize: "10px", color: t.textFaint }}>
+            SYMBOLS TRADED: <span style={{ color: t.text, fontFamily: "monospace" }}>{[...stats.symbols].join(", ")}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 function abbrevMsgType(msgTypeName, msgType) {
   const map = {
     "New Order Single":                  "NOS",
@@ -787,8 +946,10 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
   const sel = messages[selectedIdx] || null;
   const selGroupKey = sel && sel.clOrdID ? idMap[sel.clOrdID] : null;
 
+  // Pre-build O(1) index lookup — avoids indexOf per row during render
+  const originalIndexMap = useMemo(() => new Map(messages.map((m, i) => [m, i])), [messages]);
+
   const filterLower = logFilter.trim().toLowerCase();
-  // Store originalIndex on each filtered entry to avoid O(n²) indexOf
   const filteredMessages = (filterLower
     ? messages.filter(m =>
         abbrevMsgType(m.msgTypeName, m.msgType).toLowerCase().includes(filterLower) ||
@@ -798,7 +959,7 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
         (m.targetCompID || "").toLowerCase().includes(filterLower)
       )
     : messages
-  ).map((m, fi) => ({ ...m, _fi: fi, _oi: messages.indexOf(m) }));
+  ).map(m => ({ ...m, _oi: originalIndexMap.get(m) ?? 0 }));
 
   // Arrow key navigation — J/K or ↑/↓
   useEffect(() => {
@@ -840,9 +1001,28 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
     borderBottom: "1px solid " + t.borderSub,
   };
 
-  return (
-    <div style={{ marginTop: "20px", display: "flex", gap: "16px", alignItems: "flex-start" }}>
+  // CSV export
+  const exportCSV = () => {
+    const headers = ["#", "Time", "Type", "Direction", "Summary", "Δt"];
+    const rows = messages.map((m, i) => {
+      const dt = i > 0 ? calculateTimeDelta(m.sendingTime, messages[i - 1].sendingTime) : "";
+      const time = m.sendingTime ? (m.sendingTime.split("-")[1] || m.sendingTime) : "";
+      const dir = `${m.senderCompID || ""}→${m.targetCompID || ""}`;
+      return [i + 1, time, m.msgTypeName || m.msgType || "", dir, m.summary || "", dt || ""].map(v => `"${String(v).replace(/"/g, '""')}"`).join(",");
+    });
+    const csv = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = "fix-session.csv"; a.click();
+    URL.revokeObjectURL(url);
+  };
 
+  return (
+    <div style={{ marginTop: "20px" }}>
+      {/* ── Session stats panel ── */}
+      <SessionStats messages={messages} t={t} />
+
+      <div style={{ display: "flex", gap: "16px", alignItems: "flex-start" }}>
       {/* ── Left: Log table ── */}
       <div style={{ flex: "0 0 560px", minWidth: "320px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px", gap: "8px", flexWrap: "wrap" }}>
@@ -851,17 +1031,13 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
             {filterLower && filteredMessages.length !== messages.length ? ` · ${filteredMessages.length} shown` : ""}
           </span>
           <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+            <button onClick={exportCSV} title="Export as CSV" style={{ height: "26px", padding: "0 10px", borderRadius: "6px", fontSize: "11px", border: "1px solid " + t.border, background: t.panelAlt, color: t.textMuted, cursor: "pointer", whiteSpace: "nowrap" }}>⬇ CSV</button>
             <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-              <span style={{ fontSize: "10px", color: t.textFaint, whiteSpace: "nowrap" }}>🔴 spike &gt;</span>
+              <span style={{ fontSize: "10px", color: t.textFaint, whiteSpace: "nowrap" }}>🔴 &gt;</span>
               <input type="number" value={spikeMs} onChange={e => setSpikeMs(Number(e.target.value))} min={1} style={{ width: "52px", height: "24px", padding: "0 4px", fontSize: "11px", border: "1px solid " + t.border, borderRadius: "4px", background: t.inputBg, color: t.text, textAlign: "right" }} />
               <span style={{ fontSize: "10px", color: t.textFaint }}>ms</span>
             </div>
-            <input
-              value={logFilter}
-              onChange={e => setLogFilter(e.target.value)}
-              placeholder="Filter…"
-              style={{ height: "26px", padding: "0 8px", borderRadius: "6px", fontSize: "11px", border: "1px solid " + t.border, background: t.inputBg, color: t.text, outline: "none", width: "160px" }}
-            />
+            <input value={logFilter} onChange={e => setLogFilter(e.target.value)} placeholder="Filter…" style={{ height: "26px", padding: "0 8px", borderRadius: "6px", fontSize: "11px", border: "1px solid " + t.border, background: t.inputBg, color: t.text, outline: "none", width: "140px" }} />
           </div>
         </div>
 
@@ -962,6 +1138,7 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
           </div>
         ) : null}
       </div>
+      </div>  {/* end inner flex row */}
     </div>
   );
 }
@@ -973,7 +1150,16 @@ function UnifiedInput({ t, onSingleResult, onLogResult, onClearAll, input, setIn
   const [fileName, setFileName] = useState(null);
   const [history, setHistory] = useState(() => { try { return JSON.parse(localStorage.getItem("fix-history") || "[]"); } catch { return []; } });
   const [showHistory, setShowHistory] = useState(false);
+  const historyRef = useRef(null);
   const fileRef = useRef(null);
+
+  // Close history dropdown on outside click
+  useEffect(() => {
+    if (!showHistory) return;
+    const handler = (e) => { if (historyRef.current && !historyRef.current.contains(e.target)) setShowHistory(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showHistory]);
 
   const isLog = countFixStarts(input) > 1;
   const mode = input.trim() ? (isLog ? "log" : "single") : null;
@@ -1042,7 +1228,7 @@ function UnifiedInput({ t, onSingleResult, onLogResult, onClearAll, input, setIn
           {mode && <span style={{ fontSize: "10px", fontWeight: 700, padding: "3px 8px", borderRadius: "20px", background: mode === "log" ? t.purpleBg : t.accentBg, color: mode === "log" ? t.purple : t.accent, border: "1px solid " + (mode === "log" ? t.purple : t.accent) }}>{mode === "log" ? "LOG · " + countFixStarts(input) + " MSG" : "SINGLE MSG"}</span>}
 
           {history.length > 0 && (
-            <div style={{ position: "relative" }}>
+            <div ref={historyRef} style={{ position: "relative" }}>
               <Btn t={t} onClick={() => setShowHistory(v => !v)}>🕐 History</Btn>
               {showHistory && (
                 <div style={{ position: "absolute", right: 0, top: "36px", zIndex: 50, background: t.panel, border: "1px solid " + t.border, borderRadius: "8px", boxShadow: t.shadowMd, minWidth: "300px", maxHeight: "280px", overflowY: "auto" }}>
