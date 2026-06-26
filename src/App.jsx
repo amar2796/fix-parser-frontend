@@ -139,14 +139,21 @@ const POPULAR_TAGS = [
 // ─── Primitive components ─────────────────────────────────────────────────────
 function Btn({ children, onClick, disabled, style = {}, t }) {
   return (
-    <button onClick={onClick} disabled={disabled} style={{
-      padding: "5px 12px", borderRadius: "6px", cursor: disabled ? "default" : "pointer",
-      fontSize: "12px", fontWeight: 500,
-      border: "1px solid " + (t ? t.border : "#30363d"),
-      background: disabled ? (t ? t.panelAlt : "transparent") : (t ? t.panel : "#21262d"),
-      color: disabled ? (t ? t.textFaint : "#484f58") : (t ? t.text : "#e6edf3"),
-      transition: "border-color 0.15s", ...style,
-    }}>{children}</button>
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        padding: "5px 12px", borderRadius: "6px", cursor: disabled ? "default" : "pointer",
+        fontSize: "12px", fontWeight: 500,
+        border: "1px solid " + (t ? t.border : "#30363d"),
+        background: disabled ? (t ? t.panelAlt : "transparent") : (t ? t.panel : "#21262d"),
+        color: disabled ? (t ? t.textFaint : "#484f58") : (t ? t.text : "#e6edf3"),
+        transition: "border-color 0.15s, background 0.15s, color 0.15s",
+        ...style,
+      }}
+      onMouseEnter={e => { if (!disabled && t) { e.currentTarget.style.borderColor = t.textMuted; e.currentTarget.style.background = t.panelAlt; } }}
+      onMouseLeave={e => { if (!disabled && t) { e.currentTarget.style.borderColor = t.border; e.currentTarget.style.background = t.panel; } }}
+    >{children}</button>
   );
 }
 
@@ -210,20 +217,35 @@ function ExecutionSummaryVisualizer({ result, t }) {
 
 function PrimaryBtn({ children, onClick, disabled, loading, t, style = {} }) {
   return (
-    <button onClick={onClick} disabled={disabled || loading} style={{
-      padding: "8px 20px", borderRadius: "8px", fontSize: "13px", fontWeight: 600,
-      border: "none", cursor: disabled || loading ? "default" : "pointer",
-      background: disabled || loading ? t.textFaint : t.accent,
-      color: "#fff", transition: "opacity 0.15s", ...style,
-    }}>{loading ? "Processing…" : children}</button>
+    <button
+      onClick={onClick}
+      disabled={disabled || loading}
+      style={{
+        padding: "8px 22px", borderRadius: "8px", fontSize: "13px", fontWeight: 600,
+        border: "none", cursor: disabled || loading ? "default" : "pointer",
+        background: disabled || loading
+          ? t.textFaint
+          : `linear-gradient(135deg, ${t.accent}, ${t.accent}cc)`,
+        color: "#fff",
+        boxShadow: disabled || loading ? "none" : "0 2px 8px " + t.accent + "44",
+        transition: "opacity 0.15s, transform 0.1s, box-shadow 0.15s",
+        opacity: disabled ? 0.5 : 1,
+        ...style,
+      }}
+      onMouseEnter={e => { if (!disabled && !loading) { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 14px " + t.accent + "55"; } }}
+      onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = disabled || loading ? "none" : "0 2px 8px " + t.accent + "44"; }}
+    >{loading ? "⏳ Processing…" : children}</button>
   );
 }
 
 function Card({ children, t, style = {} }) {
   return (
     <div style={{
-      background: t.panel, border: "1px solid " + t.border,
-      borderRadius: "10px", overflow: "hidden", ...style,
+      background: t.panel,
+      border: "1px solid " + t.border,
+      borderRadius: "10px", overflow: "hidden",
+      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
+      ...style,
     }}>{children}</div>
   );
 }
@@ -521,59 +543,72 @@ function FieldSections({ result, t, onTagClick, filterText }) {
           const sc = t.sections[key];
           const count = (result.components[key] || []).length;
           const open = openMap[key];
+
+          // Section icon
+          const icon = key === "header" ? "⬡" : key === "body" ? "⬢" : "◈";
+
           return (
             <div key={key} style={{
-              display: "flex", alignItems: "center",
+              display: "flex", alignItems: "stretch",
               borderRadius: "8px",
               border: "1.5px solid " + (open ? sc.border : t.border),
               overflow: "hidden", flexShrink: 0,
-              boxShadow: open ? "0 0 0 3px " + sc.border + "22" : "none",
+              boxShadow: open ? "0 0 0 3px " + sc.border + "20" : "none",
               transition: "border-color 0.15s, box-shadow 0.15s",
+              height: "30px",
             }}>
-              {/* Label + count — click to scroll */}
+              {/* Main pill: icon + label + count — click scrolls to section */}
               <button
                 onClick={() => jumpTo(key)}
-                title={"Scroll to " + sc.label}
+                title={"Jump to " + sc.label}
                 style={{
-                  display: "flex", alignItems: "center", gap: "6px",
-                  padding: "4px 10px 4px 12px",
-                  background: open ? sc.border : t.panelAlt,
+                  display: "flex", alignItems: "center", gap: "5px",
+                  padding: "0 10px 0 10px",
+                  background: open ? sc.border : "transparent",
                   color: open ? "#fff" : sc.border,
                   border: "none", cursor: "pointer",
-                  fontSize: "11px", fontWeight: 700, letterSpacing: "0.4px",
+                  fontSize: "11px", fontWeight: 700, letterSpacing: "0.3px",
                   transition: "background 0.15s, color 0.15s",
+                  whiteSpace: "nowrap",
                 }}
               >
+                <span style={{ fontSize: "12px", opacity: open ? 0.85 : 1 }}>{icon}</span>
                 {sc.label}
                 <span style={{
-                  fontSize: "10px", fontWeight: 700,
-                  padding: "1px 6px", borderRadius: "20px",
-                  background: open ? "rgba(255,255,255,0.22)" : sc.border + "22",
+                  fontSize: "10px", fontWeight: 800,
+                  padding: "0px 5px", borderRadius: "10px",
+                  background: open ? "rgba(255,255,255,0.22)" : sc.border + "1a",
                   color: open ? "#fff" : sc.border,
-                  minWidth: "18px", textAlign: "center",
+                  minWidth: "16px", textAlign: "center",
+                  lineHeight: "16px",
                   transition: "all 0.15s",
                 }}>{count}</span>
               </button>
 
-              {/* Slim divider */}
-              <div style={{ width: "1px", height: "24px", background: open ? "rgba(255,255,255,0.25)" : t.border, flexShrink: 0 }} />
+              {/* Divider */}
+              <div style={{
+                width: "1px", alignSelf: "stretch",
+                background: open ? "rgba(255,255,255,0.2)" : t.border,
+                flexShrink: 0,
+              }} />
 
-              {/* Chevron toggle */}
+              {/* Chevron — click toggles open/close */}
               <button
                 onClick={() => toggle(key)}
                 title={open ? "Collapse " + sc.label : "Expand " + sc.label}
                 style={{
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  width: "28px", height: "28px",
-                  background: open ? sc.border : t.panelAlt,
+                  width: "26px",
+                  background: open ? sc.border + "cc" : "transparent",
                   color: open ? "#fff" : sc.border,
                   border: "none", cursor: "pointer",
                   transition: "background 0.15s, color 0.15s",
                   flexShrink: 0,
                 }}
               >
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ transition: "transform 0.2s", transform: open ? "rotate(180deg)" : "rotate(0deg)" }}>
-                  <path d="M2 3.5l3 3 3-3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+                <svg width="9" height="9" viewBox="0 0 9 9" fill="none"
+                  style={{ transition: "transform 0.2s", transform: open ? "rotate(180deg)" : "rotate(0deg)" }}>
+                  <path d="M1.5 3l3 3 3-3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </button>
             </div>
@@ -719,54 +754,99 @@ function Walkthrough({ result, originalInput, t }) {
 function TagPanel({ field, onClose, t }) {
   if (!field) return null;
 
-  // Close on Escape key
   useEffect(() => {
     const h = (e) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", h);
     return () => document.removeEventListener("keydown", h);
   }, [onClose]);
 
+  const badge = badgeFor(field.name, t);
+
   return (
     <>
-      {/* Backdrop — click outside to close */}
       <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 199, background: "transparent" }} />
-      {/* Panel */}
       <div style={{
-        position: "fixed", top: 0, right: 0, bottom: 0, width: "380px",
+        position: "fixed", top: 0, right: 0, bottom: 0, width: "360px",
         background: t.panel, borderLeft: "1px solid " + t.border,
-        boxShadow: t.shadowMd, zIndex: 200, display: "flex", flexDirection: "column",
-        animation: "slideIn 0.18s ease",
+        boxShadow: "-4px 0 24px rgba(0,0,0,0.25)", zIndex: 200,
+        display: "flex", flexDirection: "column",
+        animation: "slideIn 0.2s cubic-bezier(0.22,1,0.36,1)",
       }}>
-        <style>{`@keyframes slideIn { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }`}</style>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", borderBottom: "1px solid " + t.border }}>
-          <span style={{ fontSize: "13px", fontWeight: 600, color: t.text }}>Tag Reference</span>
-          <button onClick={onClose} aria-label="Close tag panel" style={{ background: "none", border: "none", cursor: "pointer", color: t.textMuted, fontSize: "20px", lineHeight: 1 }}>×</button>
-        </div>
-        <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
-          <div style={{ display: "flex", gap: "16px", alignItems: "baseline", marginBottom: "20px" }}>
-            <span style={{ fontFamily: "monospace", fontSize: "40px", fontWeight: 700, color: t.accent }}>{field.tag}</span>
-            <span style={{ fontSize: "22px", fontWeight: 700, color: t.text }}>{field.name}</span>
+        <style>{`@keyframes slideIn { from { transform: translateX(48px); opacity:0; } to { transform:none; opacity:1; } }`}</style>
+
+        {/* Header */}
+        <div style={{
+          padding: "14px 18px", borderBottom: "1px solid " + t.border,
+          background: "linear-gradient(180deg, " + t.panelAlt + ", " + t.panel + ")",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span style={{ fontSize: "10px", fontWeight: 700, color: t.textFaint, letterSpacing: "0.6px" }}>TAG REFERENCE</span>
           </div>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            style={{ width: "26px", height: "26px", borderRadius: "6px", border: "1px solid " + t.border, background: "transparent", cursor: "pointer", color: t.textMuted, fontSize: "16px", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.12s" }}
+            onMouseEnter={e => { e.currentTarget.style.background = t.redBg; e.currentTarget.style.color = t.red; e.currentTarget.style.borderColor = t.red; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = t.textMuted; e.currentTarget.style.borderColor = t.border; }}
+          >×</button>
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "20px 18px" }}>
+
+          {/* Tag number + name hero */}
+          <div style={{ marginBottom: "20px" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
+              <div style={{
+                fontFamily: "monospace", fontSize: "36px", fontWeight: 800,
+                color: t.accent, lineHeight: 1,
+                background: t.accentBg, padding: "6px 12px", borderRadius: "8px",
+                border: "1px solid " + t.accent + "33", flexShrink: 0,
+              }}>{field.tag}</div>
+              <div style={{ paddingTop: "4px" }}>
+                <div style={{ fontSize: "18px", fontWeight: 700, color: t.text, lineHeight: 1.2, marginBottom: "6px" }}>{field.name}</div>
+                <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "20px", background: badge.bg, color: badge.fg, border: "0.5px solid " + badge.border }}>{field.name}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Why this matters */}
           {field.why && (
-            <div style={{ borderLeft: "3px solid " + t.accent, padding: "10px 14px", background: t.panelAlt, borderRadius: "0 8px 8px 0", marginBottom: "16px" }}>
-              <div style={{ fontSize: "10px", fontWeight: 700, color: t.accent, letterSpacing: "0.5px" }}>WHY THIS MATTERS</div>
-              <div style={{ fontSize: "13px", color: t.textMuted, marginTop: "4px" }}>{field.why}</div>
+            <div style={{ borderLeft: "3px solid " + t.accent, padding: "10px 14px", background: t.accentBg, borderRadius: "0 8px 8px 0", marginBottom: "16px" }}>
+              <div style={{ fontSize: "10px", fontWeight: 700, color: t.accent, letterSpacing: "0.5px", marginBottom: "4px" }}>WHY THIS MATTERS</div>
+              <div style={{ fontSize: "12px", color: t.textMuted, lineHeight: 1.5 }}>{field.why}</div>
             </div>
           )}
+
+          {/* Raw value */}
           {field.raw !== undefined && (
-            <div style={{ marginBottom: "12px" }}>
-              <div style={{ fontSize: "10px", color: t.textFaint, marginBottom: "4px", letterSpacing: "0.4px" }}>RAW VALUE</div>
-              <div style={{ fontFamily: "monospace", fontSize: "14px", color: t.text, background: t.panelAlt, padding: "6px 10px", borderRadius: "6px", border: "1px solid " + t.border }}>{field.raw || "—"}</div>
+            <div style={{ marginBottom: "14px" }}>
+              <div style={{ fontSize: "10px", fontWeight: 600, color: t.textFaint, letterSpacing: "0.5px", marginBottom: "6px" }}>RAW VALUE</div>
+              <div style={{ fontFamily: "monospace", fontSize: "13px", color: t.text, background: t.inputBg, padding: "8px 12px", borderRadius: "6px", border: "1px solid " + t.border, wordBreak: "break-all" }}>
+                {field.raw || <span style={{ color: t.textFaint, fontStyle: "italic" }}>empty</span>}
+              </div>
             </div>
           )}
+
+          {/* Decoded meaning */}
           {field.meaning && field.meaning !== field.raw && (
-            <div style={{ marginBottom: "12px" }}>
-              <div style={{ fontSize: "10px", color: t.textFaint, marginBottom: "4px", letterSpacing: "0.4px" }}>DECODED MEANING</div>
-              <div style={{ fontSize: "14px", color: t.green, fontWeight: 600 }}>{field.meaning}</div>
+            <div style={{ marginBottom: "14px" }}>
+              <div style={{ fontSize: "10px", fontWeight: 600, color: t.textFaint, letterSpacing: "0.5px", marginBottom: "6px" }}>DECODED MEANING</div>
+              <div style={{ fontSize: "14px", fontWeight: 700, color: t.green, background: t.greenBg, padding: "8px 12px", borderRadius: "6px", border: "1px solid " + t.green + "33" }}>
+                {field.meaning}
+              </div>
             </div>
           )}
+
+          {/* FIX dictionary link */}
           {field.referenceUrl && (
-            <a href={field.referenceUrl} target="_blank" rel="noreferrer" style={{ fontSize: "12px", color: t.accent, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "4px", marginTop: "8px" }}>
+            <a
+              href={field.referenceUrl} target="_blank" rel="noreferrer"
+              style={{ display: "inline-flex", alignItems: "center", gap: "6px", marginTop: "8px", fontSize: "12px", color: t.accent, textDecoration: "none", padding: "6px 12px", borderRadius: "6px", border: "1px solid " + t.accent + "44", background: t.accentBg, transition: "all 0.12s" }}
+              onMouseEnter={e => { e.currentTarget.style.background = t.accent; e.currentTarget.style.color = "#fff"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = t.accentBg; e.currentTarget.style.color = t.accent; }}
+            >
               View FIX dictionary ↗
             </a>
           )}
@@ -852,7 +932,7 @@ function SingleResult({ result, originalInput, t, onTagClick, filterRef, tableFi
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", marginBottom: "14px", flexWrap: "wrap" }}>
         <div style={{ display: "flex", gap: "6px" }}>
           {["table", "walkthrough"].map(v => (
-            <button key={v} onClick={() => setSubView(v)} style={{ padding: "6px 14px", borderRadius: "6px", fontSize: "12px", border: "1px solid " + (subView === v ? t.accent : t.border), background: subView === v ? t.accentBg : t.panel, color: subView === v ? t.accent : t.textMuted, cursor: "pointer" }}>{v === "table" ? "Table" : "Walkthrough"}</button>
+            <button key={v} onClick={() => setSubView(v)} style={{ padding: "5px 14px", borderRadius: "6px", fontSize: "12px", fontWeight: subView === v ? 600 : 400, border: "1.5px solid " + (subView === v ? t.accent : t.border), background: subView === v ? t.accentBg : "transparent", color: subView === v ? t.accent : t.textMuted, cursor: "pointer", transition: "all 0.12s" }}>{v === "table" ? "⊞ Table" : "▶ Walkthrough"}</button>
           ))}
         </div>
 
@@ -1321,7 +1401,11 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
                   );
                 })}
                 {filteredMessages.length === 0 && (
-                  <tr><td colSpan={5} style={{ padding: "24px", textAlign: "center", color: t.textFaint, fontSize: "12px" }}>No messages match "{logFilter}"</td></tr>
+                  <tr><td colSpan={5} style={{ padding: "40px 24px", textAlign: "center" }}>
+                    <div style={{ fontSize: "24px", marginBottom: "8px" }}>🔍</div>
+                    <div style={{ fontSize: "13px", fontWeight: 600, color: t.textMuted, marginBottom: "4px" }}>No messages match</div>
+                    <div style={{ fontSize: "11px", color: t.textFaint }}>"{logFilter}"</div>
+                  </td></tr>
                 )}
               </tbody>
             </table>
@@ -1343,8 +1427,8 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", marginBottom: "12px", flexWrap: "wrap" }}>
               <div style={{ display: "flex", gap: "6px" }}>
                 {["table", "walkthrough"].map(v => (
-                  <button key={v} onClick={() => setDetailMode(v)} style={{ padding: "5px 12px", borderRadius: "6px", fontSize: "12px", border: "1px solid " + (detailMode === v ? t.accent : t.border), background: detailMode === v ? t.accentBg : t.panel, color: detailMode === v ? t.accent : t.textMuted, cursor: "pointer" }}>
-                    {v === "table" ? "Table" : "Walkthrough"}
+                  <button key={v} onClick={() => setDetailMode(v)} style={{ padding: "5px 14px", borderRadius: "6px", fontSize: "12px", fontWeight: detailMode === v ? 600 : 400, border: "1.5px solid " + (detailMode === v ? t.accent : t.border), background: detailMode === v ? t.accentBg : "transparent", color: detailMode === v ? t.accent : t.textMuted, cursor: "pointer", transition: "all 0.12s" }}>
+                    {v === "table" ? "⊞ Table" : "▶ Walkthrough"}
                   </button>
                 ))}
               </div>
