@@ -241,20 +241,39 @@ function Badge({ text, t }) {
 
 function ValidationBanner({ result, t }) {
   const ok = result.isValid;
+  const errors = result.validationErrors || [];
   return (
     <div style={{
-      padding: "10px 16px", borderRadius: "8px", marginBottom: "14px",
-      background: ok ? t.greenBg : t.redBg,
+      borderRadius: "10px", marginBottom: "14px", overflow: "hidden",
       border: "1px solid " + (ok ? t.green : t.red),
-      color: ok ? t.green : t.red,
+      background: ok ? t.greenBg : t.redBg,
     }}>
-      <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: !ok && result.validationErrors?.length ? "6px" : 0 }}>
-        {ok ? "✓ Valid" : "✗ Validation errors"}{" "}
-        <span style={{ fontWeight: 400, color: t.textMuted }}>· {result.msgTypeName}</span>
+      {/* Main status row */}
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 16px" }}>
+        <div style={{
+          width: "28px", height: "28px", borderRadius: "50%", flexShrink: 0,
+          background: ok ? t.green : t.red,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: "14px", fontWeight: 700, color: "#fff",
+        }}>{ok ? "✓" : "✕"}</div>
+        <div>
+          <div style={{ fontSize: "13px", fontWeight: 700, color: ok ? t.green : t.red }}>
+            {ok ? "Valid Message" : `${errors.length} Validation Error${errors.length !== 1 ? "s" : ""}`}
+          </div>
+          <div style={{ fontSize: "11px", color: t.textMuted, marginTop: "1px" }}>{result.msgTypeName}</div>
+        </div>
       </div>
-      {!ok && result.validationErrors?.map((e, i) => (
-        <div key={i} style={{ fontSize: "12px", marginTop: "3px" }}>· {e}</div>
-      ))}
+      {/* Error list */}
+      {!ok && errors.length > 0 && (
+        <div style={{ borderTop: "1px solid " + t.red + "44", padding: "8px 16px 10px", display: "flex", flexDirection: "column", gap: "4px" }}>
+          {errors.map((e, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "8px", fontSize: "12px", color: t.red }}>
+              <span style={{ flexShrink: 0, marginTop: "1px", opacity: 0.7 }}>›</span>
+              <span>{e}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -295,12 +314,14 @@ function ThemedAnatomyBar({ result, originalInput, stepIdx = null, onClickField 
               onMouseLeave={() => setHoveredField(null)}
               onMouseMove={handleMouseMove}
               style={{
-                display: "inline-block", padding: "1px 5px", marginRight: "2px",
-                borderRadius: "3px", cursor: "pointer",
-                transition: "all 0.15s",
+                display: "inline-block", padding: "2px 6px", marginRight: "3px", marginBottom: "2px",
+                borderRadius: "4px", cursor: field ? "pointer" : "default",
+                transition: "all 0.12s",
                 background: isCurrent ? sc.border : sc.bg,
                 color: isCurrent ? "#fff" : sc.text,
-                fontWeight: isCurrent ? 700 : 400,
+                fontWeight: isCurrent ? 700 : 500,
+                border: "1px solid " + (isCurrent ? sc.border : sc.border + "44"),
+                boxShadow: isCurrent ? "0 0 0 2px " + sc.border + "44" : "none",
               }}
             >{part}</span>
           );
@@ -310,13 +331,22 @@ function ThemedAnatomyBar({ result, originalInput, stepIdx = null, onClickField 
       {hoveredField && (
         <div style={{
           position: "fixed", top: tooltipPos.y, left: tooltipPos.x,
-          background: t.header, border: "1px solid " + t.border, borderRadius: "6px",
-          padding: "8px 12px", boxShadow: t.shadowMd, zIndex: 500, pointerEvents: "none",
-          fontFamily: "system-ui, sans-serif", fontSize: "12px", minWidth: "200px"
+          background: t.header, border: "1px solid " + t.border,
+          borderRadius: "8px", padding: "10px 14px",
+          boxShadow: t.shadowMd, zIndex: 500, pointerEvents: "none",
+          fontFamily: "system-ui, sans-serif", fontSize: "12px",
+          minWidth: "220px", maxWidth: "300px",
         }}>
-          <div style={{ fontWeight: 700, color: t.accent, fontFamily: "monospace" }}>Tag {hoveredField.tag} · {hoveredField.name}</div>
-          <div style={{ marginTop: "4px", color: t.text }}>Value: <code style={{ fontFamily: "monospace", color: t.green }}>{hoveredField.raw}</code></div>
-          <div style={{ color: t.textMuted, fontSize: "11px", marginTop: "2px" }}>Meaning: {hoveredField.meaning}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+            <span style={{ fontFamily: "monospace", fontSize: "11px", fontWeight: 700, color: "#fff", background: t.accent, padding: "1px 7px", borderRadius: "4px" }}>Tag {hoveredField.tag}</span>
+            <span style={{ fontSize: "12px", fontWeight: 600, color: t.text }}>{hoveredField.name}</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+            <div style={{ fontSize: "11px", color: t.textMuted }}>Value: <code style={{ fontFamily: "monospace", color: t.green, background: t.greenBg, padding: "0 4px", borderRadius: "3px" }}>{hoveredField.raw}</code></div>
+            {hoveredField.meaning && hoveredField.meaning !== hoveredField.raw && (
+              <div style={{ fontSize: "11px", color: t.textMuted }}>Decoded: <span style={{ color: t.text, fontWeight: 500 }}>{hoveredField.meaning}</span></div>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -349,48 +379,72 @@ function FieldTable({ rows, sectionKey, t, onTagClick, filterText, isOpen, onTog
   });
   const groupKeys = Object.keys(groupsMap);
 
-  const renderRow = (r, key, lastInSection) => (
-    <tr key={key} style={{ borderBottom: lastInSection ? "none" : "1px solid " + t.borderSub }}>
-      <td style={{ padding: "6px 10px", fontFamily: "ui-monospace,monospace", fontSize: "11px", fontWeight: 700, color: sc.text, whiteSpace: "nowrap" }}>{r.tag}</td>
+  const renderRow = (r, key, lastInSection, rowIndex) => (
+    <tr
+      key={key}
+      style={{ borderBottom: lastInSection ? "none" : "1px solid " + t.borderSub, background: rowIndex % 2 === 0 ? "transparent" : t.panelAlt + "88", transition: "background 0.08s" }}
+      onMouseEnter={e => e.currentTarget.style.background = sc.border + "12"}
+      onMouseLeave={e => e.currentTarget.style.background = rowIndex % 2 === 0 ? "transparent" : t.panelAlt + "88"}
+    >
+      <td style={{ padding: "6px 10px", whiteSpace: "nowrap" }}>
+        <span style={{ fontFamily: "ui-monospace,monospace", fontSize: "10px", fontWeight: 700, color: sc.border, background: sc.border + "1a", padding: "2px 7px", borderRadius: "4px" }}>{r.tag}</span>
+      </td>
       <td style={{ padding: "6px 10px", fontSize: "12px", color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {r.name}
-        {r.isUnknownTag && <span style={{ fontSize: "10px", color: t.red, marginLeft: "5px" }}>unknown</span>}
+        {r.isUnknownTag && <span style={{ fontSize: "9px", fontWeight: 700, color: t.red, background: t.redBg, padding: "1px 5px", borderRadius: "3px", marginLeft: "6px" }}>UNKNOWN</span>}
       </td>
       <td style={{ padding: "6px 10px", fontFamily: "ui-monospace,monospace", fontSize: "11px", color: t.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.raw}</td>
-      <td style={{ padding: "6px 10px", fontSize: "12px", color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.meaning}</td>
-      <td style={{ padding: "6px 4px", textAlign: "center" }}>
-        <button onClick={() => onTagClick && onTagClick(r)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "11px", color: t.accent, padding: "2px 4px", borderRadius: "4px" }}>↗</button>
+      <td style={{ padding: "6px 10px", fontSize: "12px", color: r.meaning && r.meaning !== r.raw ? t.text : t.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: r.meaning && r.meaning !== r.raw ? 500 : 400 }}>{r.meaning || "—"}</td>
+      <td style={{ padding: "6px 6px", textAlign: "center" }}>
+        <button
+          onClick={() => onTagClick && onTagClick(r)}
+          title="Open tag reference"
+          style={{ background: "none", border: "1px solid transparent", cursor: "pointer", fontSize: "11px", color: t.textFaint, padding: "2px 6px", borderRadius: "4px", transition: "all 0.1s" }}
+          onMouseEnter={e => { e.currentTarget.style.color = t.accent; e.currentTarget.style.borderColor = t.accent; e.currentTarget.style.background = t.accentBg; }}
+          onMouseLeave={e => { e.currentTarget.style.color = t.textFaint; e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.background = "none"; }}
+        >↗</button>
       </td>
     </tr>
   );
 
   const groupDivider = (gIdx) => (
     <tr key={"g-hdr-" + gIdx}>
-      <td colSpan={5} style={{ padding: "4px 10px", background: t.panelAlt, borderTop: "1px solid " + t.border, borderBottom: "1px solid " + t.border, borderLeft: "3px solid " + t.purple, fontSize: "10px", fontWeight: 700, color: t.purple, letterSpacing: "0.5px", textTransform: "uppercase" }}>
-        Repeating group entry #{parseInt(gIdx) + 1}
+      <td colSpan={5} style={{ padding: "5px 12px", background: t.purple + "12", borderTop: "1px solid " + t.border, borderBottom: "1px solid " + t.border, borderLeft: "3px solid " + t.purple }}>
+        <span style={{ fontSize: "10px", fontWeight: 700, color: t.purple, letterSpacing: "0.5px" }}>REPEATING GROUP #{parseInt(gIdx) + 1}</span>
       </td>
     </tr>
   );
 
   return (
-    <div ref={sectionRef} style={{ marginBottom: "10px", borderRadius: "8px", border: "1px solid " + t.border, overflow: "hidden" }}>
+    <div ref={sectionRef} style={{ marginBottom: "10px", borderRadius: "8px", border: "1.5px solid " + (isOpen ? sc.border + "55" : t.border), overflow: "hidden", transition: "border-color 0.15s" }}>
       {/* ── Accordion header ── */}
       <div
         onClick={onToggle}
-        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 12px", background: sc.border, cursor: "pointer", userSelect: "none" }}
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "9px 14px",
+          background: isOpen ? sc.border + "18" : t.panelAlt,
+          borderLeft: "4px solid " + sc.border,
+          cursor: "pointer", userSelect: "none",
+          transition: "background 0.15s",
+        }}
+        onMouseEnter={e => { e.currentTarget.style.background = sc.border + "25"; }}
+        onMouseLeave={e => { e.currentTarget.style.background = isOpen ? sc.border + "18" : t.panelAlt; }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <span style={{ fontSize: "11px", fontWeight: 700, color: "#fff", letterSpacing: "0.8px" }}>{sc.label}</span>
-          <span style={{ fontSize: "10px", padding: "1px 7px", borderRadius: "20px", background: "rgba(255,255,255,0.2)", color: "#fff" }}>
+          <span style={{ fontSize: "11px", fontWeight: 700, color: sc.border, letterSpacing: "0.6px" }}>{sc.label}</span>
+          <span style={{
+            fontSize: "10px", fontWeight: 600, padding: "1px 8px", borderRadius: "20px",
+            background: sc.border + "22", color: sc.border,
+          }}>
             {filteredRows.length} field{filteredRows.length !== 1 ? "s" : ""}
           </span>
           {!isOpen && groupKeys.length > 0 && (
-            <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.7)" }}>{groupKeys.length} repeating group{groupKeys.length !== 1 ? "s" : ""}</span>
+            <span style={{ fontSize: "10px", color: t.textFaint }}>· {groupKeys.length} group{groupKeys.length !== 1 ? "s" : ""}</span>
           )}
         </div>
-        {/* Chevron */}
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ transition: "transform 0.2s", transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", flexShrink: 0 }}>
-          <path d="M3 5l4 4 4-4" stroke="rgba(255,255,255,0.8)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M3 5l4 4 4-4" stroke={sc.border} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
       </div>
 
@@ -406,17 +460,17 @@ function FieldTable({ rows, sectionKey, t, onTagClick, filterText, isOpen, onTog
               <col style={{ width: "32px" }} />
             </colgroup>
             <thead>
-              <tr style={{ borderBottom: "1px solid " + t.border, background: t.panelAlt }}>
+              <tr style={{ borderBottom: "1px solid " + t.border, background: sc.border + "0d", borderLeft: "3px solid " + sc.border }}>
                 {["Tag", "Field Name", "Raw Value", "Meaning", ""].map((h, i) => (
-                  <th key={i} style={{ padding: "5px 10px", textAlign: "left", fontSize: "10px", fontWeight: 600, color: t.textFaint, letterSpacing: "0.4px", whiteSpace: "nowrap" }}>{h}</th>
+                  <th key={i} style={{ padding: "6px 10px", textAlign: "left", fontSize: "10px", fontWeight: 700, color: i === 0 ? sc.border : t.textFaint, letterSpacing: "0.5px", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {baseFields.map((r, i) => renderRow(r, "b" + i, i === baseFields.length - 1 && groupKeys.length === 0))}
+              {baseFields.map((r, i) => renderRow(r, "b" + i, i === baseFields.length - 1 && groupKeys.length === 0, i))}
               {groupKeys.map((gIdx) => {
                 const fields = groupsMap[gIdx];
-                return [groupDivider(gIdx), ...fields.map((r, i) => renderRow(r, "g" + gIdx + "-" + i, i === fields.length - 1))];
+                return [groupDivider(gIdx), ...fields.map((r, i) => renderRow(r, "g" + gIdx + "-" + i, i === fields.length - 1, i))];
               })}
             </tbody>
           </table>
@@ -454,13 +508,13 @@ function FieldSections({ result, t, onTagClick, filterText }) {
     <div>
       {/* ── Sticky jump + toggle bar ── */}
       <div style={{
-        display: "flex", alignItems: "center", gap: "6px",
-        padding: "6px 0", marginBottom: "10px",
+        display: "flex", alignItems: "center", gap: "8px",
+        padding: "8px 0", marginBottom: "12px",
         position: "sticky", top: 0, zIndex: 10,
         background: t.page,
         borderBottom: "1px solid " + t.borderSub,
       }}>
-        <span style={{ fontSize: "10px", color: t.textFaint, marginRight: "2px", letterSpacing: "0.3px", whiteSpace: "nowrap" }}>JUMP TO</span>
+        <span style={{ fontSize: "10px", fontWeight: 600, color: t.textFaint, marginRight: "4px", letterSpacing: "0.6px", whiteSpace: "nowrap" }}>JUMP TO</span>
 
         {SECTIONS.map(key => {
           if (!hasRows(key)) return null;
@@ -468,58 +522,79 @@ function FieldSections({ result, t, onTagClick, filterText }) {
           const count = (result.components[key] || []).length;
           const open = openMap[key];
           return (
-            <div key={key} style={{ display: "flex", alignItems: "center", borderRadius: "20px", border: "1px solid " + sc.border, overflow: "hidden", flexShrink: 0 }}>
-              {/* Jump arrow — scroll to section */}
+            <div key={key} style={{
+              display: "flex", alignItems: "center",
+              borderRadius: "8px",
+              border: "1.5px solid " + (open ? sc.border : t.border),
+              overflow: "hidden", flexShrink: 0,
+              boxShadow: open ? "0 0 0 3px " + sc.border + "22" : "none",
+              transition: "border-color 0.15s, box-shadow 0.15s",
+            }}>
+              {/* Label + count — click to scroll */}
               <button
                 onClick={() => jumpTo(key)}
                 title={"Scroll to " + sc.label}
                 style={{
-                  display: "flex", alignItems: "center", gap: "5px",
-                  padding: "3px 8px 3px 10px",
-                  background: open ? sc.border : "transparent",
+                  display: "flex", alignItems: "center", gap: "6px",
+                  padding: "4px 10px 4px 12px",
+                  background: open ? sc.border : t.panelAlt,
                   color: open ? "#fff" : sc.border,
                   border: "none", cursor: "pointer",
-                  fontSize: "11px", fontWeight: 600,
-                  transition: "all 0.15s",
+                  fontSize: "11px", fontWeight: 700, letterSpacing: "0.4px",
+                  transition: "background 0.15s, color 0.15s",
                 }}
               >
                 {sc.label}
                 <span style={{
-                  fontSize: "10px", padding: "0 5px", borderRadius: "20px",
-                  background: open ? "rgba(255,255,255,0.25)" : t.panelAlt,
-                  color: open ? "#fff" : t.textFaint,
+                  fontSize: "10px", fontWeight: 700,
+                  padding: "1px 6px", borderRadius: "20px",
+                  background: open ? "rgba(255,255,255,0.22)" : sc.border + "22",
+                  color: open ? "#fff" : sc.border,
+                  minWidth: "18px", textAlign: "center",
+                  transition: "all 0.15s",
                 }}>{count}</span>
               </button>
-              {/* Divider */}
-              <div style={{ width: "1px", height: "18px", background: open ? "rgba(255,255,255,0.3)" : sc.border + "66" }} />
-              {/* Toggle chevron */}
+
+              {/* Slim divider */}
+              <div style={{ width: "1px", height: "24px", background: open ? "rgba(255,255,255,0.25)" : t.border, flexShrink: 0 }} />
+
+              {/* Chevron toggle */}
               <button
                 onClick={() => toggle(key)}
                 title={open ? "Collapse " + sc.label : "Expand " + sc.label}
                 style={{
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  padding: "3px 7px",
-                  background: open ? sc.border : "transparent",
+                  width: "28px", height: "28px",
+                  background: open ? sc.border : t.panelAlt,
                   color: open ? "#fff" : sc.border,
                   border: "none", cursor: "pointer",
-                  transition: "all 0.15s",
+                  transition: "background 0.15s, color 0.15s",
+                  flexShrink: 0,
                 }}
               >
-                <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-                  <path d="M2 4l3.5 3.5L9 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
-                    style={{ transition: "transform 0.2s", transformOrigin: "center", transform: open ? "rotate(180deg)" : "rotate(0deg)", display: "block" }} />
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ transition: "transform 0.2s", transform: open ? "rotate(180deg)" : "rotate(0deg)" }}>
+                  <path d="M2 3.5l3 3 3-3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </button>
             </div>
           );
         })}
 
-        {/* Collapse all / Expand all */}
+        {/* Collapse / Expand all */}
         <button
           onClick={() => setOpenMap({ header: !anyOpen, body: !anyOpen, trailer: !anyOpen })}
-          style={{ marginLeft: "auto", fontSize: "10px", padding: "3px 8px", borderRadius: "6px", border: "1px solid " + t.border, background: "transparent", color: t.textFaint, cursor: "pointer", whiteSpace: "nowrap" }}
+          style={{
+            marginLeft: "auto", fontSize: "10px", fontWeight: 500,
+            padding: "4px 10px", borderRadius: "6px",
+            border: "1px solid " + t.border,
+            background: "transparent", color: t.textFaint,
+            cursor: "pointer", whiteSpace: "nowrap",
+            transition: "color 0.15s, border-color 0.15s",
+          }}
+          onMouseEnter={e => { e.currentTarget.style.color = t.text; e.currentTarget.style.borderColor = t.textMuted; }}
+          onMouseLeave={e => { e.currentTarget.style.color = t.textFaint; e.currentTarget.style.borderColor = t.border; }}
         >
-          {anyOpen ? "Collapse all" : "Expand all"}
+          {anyOpen ? "↑ Collapse all" : "↓ Expand all"}
         </button>
       </div>
 
@@ -1201,9 +1276,9 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
                 <col style={{ width: "54px" }} />
               </colgroup>
               <thead>
-                <tr style={{ background: t.panelAlt, position: "sticky", top: 0, zIndex: 1 }}>
+                <tr style={{ background: t.panelAlt, position: "sticky", top: 0, zIndex: 1, boxShadow: "0 1px 0 " + t.border }}>
                   {[["#","right"],["Time","left"],["Type","left"],["Summary","left"],["Δt","right"]].map(([label, align]) => (
-                    <th key={label} style={{ padding: "5px 8px", fontSize: "10px", fontWeight: 600, color: t.textFaint, textAlign: align, borderBottom: "1px solid " + t.border, letterSpacing: "0.3px" }}>
+                    <th key={label} style={{ padding: "6px 8px", fontSize: "10px", fontWeight: 700, color: t.textFaint, textAlign: align, borderBottom: "2px solid " + t.border, letterSpacing: "0.5px" }}>
                       {label}
                     </th>
                   ))}
@@ -1599,46 +1674,80 @@ export default function App() {
       <div style={{ minHeight: "100vh", background: t.page, color: t.text, fontFamily: "system-ui, sans-serif", display: "flex", flexDirection: "column", width: "100%" }}>
         
         {/* Header */}
-        <header style={{ position: "sticky", top: 0, zIndex: 100, background: t.header, borderBottom: "1px solid " + t.border, display: "flex", alignItems: "center", padding: "0 24px", height: "52px", gap: "16px", width: "100%" }}>
-          
-          {/* Reset Logo Trigger Link */}
-          <div onClick={handleHomeReset} style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", userSelect: "none" }} title="Return to Homepage">
-            <div style={{ width: "28px", height: "28px", borderRadius: "6px", background: t.accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px", fontWeight: 800, color: "#fff" }}>F</div>
+        <header style={{
+          position: "sticky", top: 0, zIndex: 100,
+          background: t.header,
+          borderBottom: "1px solid " + t.border,
+          display: "flex", alignItems: "center",
+          padding: "0 24px", height: "54px", gap: "16px", width: "100%",
+          boxShadow: "0 1px 0 " + t.border + ", 0 2px 8px rgba(0,0,0,0.08)",
+        }}>
+          {/* Logo */}
+          <div onClick={handleHomeReset} style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", userSelect: "none" }} title="Home">
+            <div style={{
+              width: "30px", height: "30px", borderRadius: "8px", flexShrink: 0,
+              background: "linear-gradient(135deg, " + t.accent + ", " + t.purple + ")",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: "14px", fontWeight: 800, color: "#fff",
+              boxShadow: "0 2px 8px " + t.accent + "44",
+            }}>F</div>
             <div>
-              <div style={{ fontSize: "14px", fontWeight: 700, color: t.text, lineHeight: 1.1 }}><span style={{ color: t.accent }}>FIX</span> Parser</div>
-              <div style={{ fontSize: "9px", color: t.textFaint, letterSpacing: "0.5px" }}>PROTOCOL ANALYSIS</div>
+              <div style={{ fontSize: "14px", fontWeight: 700, color: t.text, lineHeight: 1.1, letterSpacing: "-0.2px" }}>
+                <span style={{ color: t.accent }}>FIX</span> Parser
+              </div>
+              <div style={{ fontSize: "9px", color: t.textFaint, letterSpacing: "0.8px", fontWeight: 600 }}>PROTOCOL ANALYSER</div>
             </div>
           </div>
 
+          {/* Slim separator */}
+          <div style={{ width: "1px", height: "28px", background: t.border }} />
+
           <div style={{ flex: 1 }} />
+
           <HeaderTagSearch t={t} onResult={f => setTagPanel(f)} />
 
-          {/* Share button — only shown when there's input to share */}
+          {/* Share button */}
           {textareaInput.trim() && (
             <button
               onClick={() => {
                 const encoded = encodeShare(textareaInput);
                 if (!encoded) return;
                 const url = `${window.location.origin}${window.location.pathname}?msg=${encoded}`;
-                navigator.clipboard.writeText(url).then(() => {
-                  setShareToast(true);
-                  setTimeout(() => setShareToast(false), 2500);
-                });
+                navigator.clipboard.writeText(url).then(() => { setShareToast(true); setTimeout(() => setShareToast(false), 2500); });
               }}
               title="Copy shareable link"
-              style={{ height: "32px", padding: "0 12px", borderRadius: "6px", fontSize: "12px", border: "1px solid " + t.border, background: "transparent", color: t.textMuted, cursor: "pointer", whiteSpace: "nowrap" }}
+              style={{ height: "32px", padding: "0 12px", borderRadius: "6px", fontSize: "12px", border: "1px solid " + t.border, background: "transparent", color: t.textMuted, cursor: "pointer", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: "5px", transition: "border-color 0.15s, color 0.15s" }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = t.accent; e.currentTarget.style.color = t.accent; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = t.border; e.currentTarget.style.color = t.textMuted; }}
             >🔗 Share</button>
           )}
 
-          <button onClick={toggleTheme} style={{ height: "32px", padding: "0 12px", borderRadius: "6px", fontSize: "12px", border: "1px solid " + t.border, background: "transparent", color: t.textMuted, cursor: "pointer" }}>
+          {/* Theme toggle */}
+          <button
+            onClick={toggleTheme}
+            title="Toggle theme"
+            style={{ height: "32px", padding: "0 12px", borderRadius: "6px", fontSize: "12px", border: "1px solid " + t.border, background: "transparent", color: t.textMuted, cursor: "pointer", transition: "border-color 0.15s, color 0.15s" }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = t.textMuted; e.currentTarget.style.color = t.text; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = t.border; e.currentTarget.style.color = t.textMuted; }}
+          >
             {themeName === "dark" ? "☀ Light" : "🌙 Dark"}
           </button>
         </header>
 
         {/* Share toast */}
         {shareToast && (
-          <div style={{ position: "fixed", bottom: "24px", left: "50%", transform: "translateX(-50%)", zIndex: 9999, background: t.green, color: "#fff", padding: "10px 20px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, boxShadow: t.shadowMd, pointerEvents: "none" }}>
-            ✓ Link copied to clipboard
+          <div style={{
+            position: "fixed", bottom: "28px", left: "50%", transform: "translateX(-50%)",
+            zIndex: 9999, background: t.green, color: "#fff",
+            padding: "10px 20px", borderRadius: "8px",
+            fontSize: "13px", fontWeight: 600,
+            boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+            pointerEvents: "none",
+            display: "flex", alignItems: "center", gap: "8px",
+            animation: "toastIn 0.25s ease",
+          }}>
+            <style>{`@keyframes toastIn { from { opacity:0; transform:translateX(-50%) translateY(10px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }`}</style>
+            <span style={{ fontSize: "16px" }}>✓</span> Link copied to clipboard
           </div>
         )}
 
