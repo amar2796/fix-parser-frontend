@@ -797,7 +797,168 @@ function SingleResult({ result, originalInput, t, onTagClick, filterRef, tableFi
   );
 }
 
-// ─── Session Statistics Panel ─────────────────────────────────────────────────
+// ─── Order Lifecycle View ─────────────────────────────────────────────────────
+const EXEC_TYPE_LABEL = {
+  "0": "New", "1": "Partial Fill", "2": "Fill", "3": "Done for Day",
+  "4": "Canceled", "5": "Replaced", "6": "Pending Cancel",
+  "7": "Stopped", "8": "Rejected", "9": "Suspended",
+  "A": "Pending New", "B": "Calculated", "C": "Expired",
+  "D": "Restated", "E": "Pending Replace", "F": "Trade",
+  "G": "Trade Correct", "H": "Trade Cancel", "I": "Order Status",
+};
+const ORD_STATUS_LABEL = {
+  "0":"New","1":"Partially Filled","2":"Filled","3":"Done for Day",
+  "4":"Canceled","5":"Replaced","6":"Pending Cancel","7":"Stopped",
+  "8":"Rejected","9":"Suspended","A":"Pending New","B":"Calculated",
+  "C":"Expired","D":"Accepted for Bidding","E":"Pending Replace",
+};
+const STATUS_COLOR = (s, t) => {
+  if (["2","F"].includes(s)) return t.green;
+  if (["4","8","C"].includes(s)) return t.red;
+  if (["1","E","6"].includes(s)) return t.yellow;
+  return t.accent;
+};
+
+function OrderLifecycleView({ messages, t, onSelectMessage }) {
+  const [expandedChain, setExpandedChain] = useState(null);
+
+  // Group messages into ClOrdID chains using the union-find map
+  const chains = useMemo(() => {
+    const idMap = buildRelatedIdMap(messages);
+    const groups = {}; // rootKey → [messages]
+    messages.forEach((m, i) => {
+      if (!m.clOrdID && m.msgTypeName !== "New Order Single" && m.msgTypeName !== "Execution Report" &&
+          m.msgTypeName !== "Order Cancel Request" && m.msgTypeName !== "Order Cancel/Replace Request" &&
+          m.msgTypeName !== "Order Cancel Reject") return;
+      const key = m.clOrdID ? idMap[m.clOrdID] : null;
+      if (!key) return;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push({ ...m, _oi: i });
+    });
+    // Sort each chain by original index, build summary
+    return Object.entries(groups).map(([key, msgs]) => {
+      msgs.sort((a, b) => a._oi - b._oi);
+      const first = msgs[0];
+      const last = msgs[msgs.length - 1];
+      const symbol = msgs.find(m => m.symbol)?.symbol || "—";
+      const side = msgs.find(m => m.side)?.side;
+      const sideLabel = side === "1" ? "Buy" : side === "2" ? "Sell" : side || "";
+      const qty = msgs.find(m => m.orderQty)?.orderQty || "";
+      const price = msgs.find(m => m.price)?.price || "";
+      const finalStatus = last.ordStatus || last.execType || null;
+      return { key, msgs, symbol, sideLabel, qty, price, finalStatus, first, last };
+    }).sort((a, b) => a.first._oi - b.first._oi);
+  }, [messages]);
+
+  if (chains.length === 0) return null;
+
+  const toMs = (s) => {
+    if (!s) return NaN;
+    const full = /^(\d{4})(\d{2})(\d{2})-(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?$/.exec(s);
+    if (full) { const [,yr,mo,dy,h,m,sec,frac] = full; return new Date(`${yr}-${mo}-${dy}T${h}:${m}:${sec}`).getTime() + (frac ? parseInt(frac.padEnd(3,"0").slice(0,3)) : 0); }
+    return NaN;
+  };
+
+  return (
+    <div style={{ marginBottom: "16px", background: t.panel, border: "1px solid " + t.border, borderRadius: "10px", overflow: "hidden" }}>
+      <div style={{ padding: "8px 16px", background: t.panelAlt, borderBottom: "1px solid " + t.border, display: "flex", alignItems: "center", gap: "10px" }}>
+        <span style={{ fontSize: "11px", fontWeight: 600, color: t.textMuted, letterSpacing: "0.5px" }}>ORDER LIFECYCLE</span>
+        <span style={{ fontSize: "10px", padding: "1px 7px", borderRadius: "20px", background: t.accentBg, color: t.accent, border: "0.5px solid " + t.accent }}>{chains.length} order{chains.length !== 1 ? "s" : ""}</span>
+      </div>
+
+      <div style={{ padding: "10px 16px", display: "flex", flexDirection: "column", gap: "8px" }}>
+        {chains.map(({ key, msgs, symbol, sideLabel, qty, price, finalStatus }) => {
+          const isExp = expandedChain === key;
+          const statusColor = finalStatus ? STATUS_COLOR(finalStatus, t) : t.textFaint;
+          const statusLabel = ORD_STATUS_LABEL[finalStatus] || EXEC_TYPE_LABEL[finalStatus] || finalStatus || "In Progress";
+
+          return (
+            <div key={key} style={{ border: "1px solid " + t.border, borderRadius: "8px", overflow: "hidden" }}>
+              {/* Chain header row */}
+              <div onClick={() => setExpandedChain(isExp ? null : key)} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "8px 12px", cursor: "pointer", background: isExp ? t.panelAlt : "transparent" }}
+                onMouseEnter={e => { if (!isExp) e.currentTarget.style.background = t.panelAlt; }}
+                onMouseLeave={e => { if (!isExp) e.currentTarget.style.background = "transparent"; }}
+              >
+                {/* Status dot */}
+                <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: statusColor, flexShrink: 0, boxShadow: "0 0 4px " + statusColor }} />
+                {/* Symbol + side */}
+                <span style={{ fontSize: "13px", fontWeight: 700, color: t.text, minWidth: "60px" }}>{symbol}</span>
+                {sideLabel && <span style={{ fontSize: "11px", padding: "1px 7px", borderRadius: "20px", background: sideLabel === "Buy" ? t.accentBg : t.redBg, color: sideLabel === "Buy" ? t.accent : t.red, border: "0.5px solid " + (sideLabel === "Buy" ? t.accent : t.red) }}>{sideLabel}</span>}
+                {qty && <span style={{ fontSize: "11px", color: t.textMuted }}>Qty: <b style={{ color: t.text }}>{qty}</b></span>}
+                {price && <span style={{ fontSize: "11px", color: t.textMuted }}>@ <b style={{ color: t.text }}>{price}</b></span>}
+                <div style={{ flex: 1 }} />
+                {/* Message mini-badges */}
+                <div style={{ display: "flex", gap: "3px" }}>
+                  {msgs.slice(0, 8).map((m, i) => {
+                    const b = badgeFor(m.msgTypeName, t);
+                    return <div key={i} style={{ width: "8px", height: "8px", borderRadius: "2px", background: b.border, title: m.msgTypeName }} title={m.msgTypeName} />;
+                  })}
+                  {msgs.length > 8 && <span style={{ fontSize: "9px", color: t.textFaint }}>+{msgs.length - 8}</span>}
+                </div>
+                <span style={{ fontSize: "11px", fontWeight: 600, color: statusColor, minWidth: "90px", textAlign: "right" }}>{statusLabel}</span>
+                <span style={{ fontSize: "11px", color: t.textFaint }}>{msgs.length} msg{msgs.length !== 1 ? "s" : ""}</span>
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ transform: isExp ? "rotate(180deg)" : "none", transition: "transform 0.2s", flexShrink: 0 }}>
+                  <path d="M2 4l4 4 4-4" stroke={t.textFaint} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+
+              {/* Expanded: step-by-step timeline */}
+              {isExp && (
+                <div style={{ padding: "0 12px 12px", borderTop: "1px solid " + t.borderSub }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0", marginTop: "10px" }}>
+                    {msgs.map((m, i) => {
+                      const b = badgeFor(m.msgTypeName, t);
+                      const timeStr = m.sendingTime ? (m.sendingTime.split("-")[1] || m.sendingTime) : "";
+                      const prev = msgs[i - 1];
+                      const dtMs = prev ? toMs(m.sendingTime) - toMs(prev.sendingTime) : null;
+                      const dtLabel = dtMs !== null && !isNaN(dtMs) && dtMs >= 0 ? (dtMs < 1000 ? `+${dtMs}ms` : `+${(dtMs/1000).toFixed(2)}s`) : null;
+                      const execLabel = m.execType ? (EXEC_TYPE_LABEL[m.execType] || m.execType) : null;
+                      const statusLbl = m.ordStatus ? (ORD_STATUS_LABEL[m.ordStatus] || m.ordStatus) : null;
+
+                      return (
+                        <div key={i}>
+                          {dtLabel && (
+                            <div style={{ display: "flex", alignItems: "center", gap: "6px", padding: "2px 0 2px 18px" }}>
+                              <div style={{ width: "1px", height: "14px", background: t.border }} />
+                              <span style={{ fontSize: "9px", color: t.purple, fontFamily: "monospace" }}>{dtLabel}</span>
+                            </div>
+                          )}
+                          <div onClick={() => onSelectMessage && onSelectMessage(m._oi)}
+                            style={{ display: "flex", alignItems: "flex-start", gap: "10px", padding: "7px 10px", borderRadius: "6px", cursor: "pointer", border: "1px solid transparent" }}
+                            onMouseEnter={e => { e.currentTarget.style.background = t.panelAlt; e.currentTarget.style.borderColor = t.border; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "transparent"; }}
+                          >
+                            {/* Step dot + line */}
+                            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: "3px" }}>
+                              <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: b.border, border: "1.5px solid " + b.border, flexShrink: 0 }} />
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                                <span style={{ fontSize: "10px", fontWeight: 600, padding: "1px 7px", borderRadius: "20px", background: b.bg, color: b.fg, border: "0.5px solid " + b.border }}>{m.msgTypeName || m.msgType}</span>
+                                {execLabel && <span style={{ fontSize: "10px", color: t.textMuted }}>ExecType: <b style={{ color: t.text }}>{execLabel}</b></span>}
+                                {statusLbl && <span style={{ fontSize: "10px", color: t.textMuted }}>Status: <b style={{ color: STATUS_COLOR(m.ordStatus, t) }}>{statusLbl}</b></span>}
+                                {m.lastQty && <span style={{ fontSize: "10px", color: t.textMuted }}>LastQty: <b style={{ color: t.text }}>{m.lastQty}</b></span>}
+                                {m.lastPx && <span style={{ fontSize: "10px", color: t.textMuted }}>@ <b style={{ color: t.text }}>{m.lastPx}</b></span>}
+                              </div>
+                              {m.summary && <div style={{ fontSize: "11px", color: t.textMuted, marginTop: "2px" }}>{m.summary}</div>}
+                            </div>
+                            <span style={{ fontSize: "9px", color: t.textFaint, fontFamily: "monospace", whiteSpace: "nowrap", paddingTop: "3px" }}>{timeStr}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+
 function SessionStats({ messages, t }) {
   const stats = useMemo(() => {
     const typeCounts = {};
@@ -1021,6 +1182,9 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
     <div style={{ marginTop: "20px" }}>
       {/* ── Session stats panel ── */}
       <SessionStats messages={messages} t={t} />
+
+      {/* ── Order lifecycle view ── */}
+      <OrderLifecycleView messages={messages} t={t} onSelectMessage={(idx) => { setSelectedIdx(idx); setDetailMode("table"); setTableFilter(""); }} />
 
       <div style={{ display: "flex", gap: "16px", alignItems: "flex-start" }}>
       {/* ── Left: Log table ── */}
@@ -1335,6 +1499,19 @@ function PopularTagsGrid({ t, onTagClick }) {
 }
 
 // ─── Root App ─────────────────────────────────────────────────────────────────
+// ─── URL permalink helpers ────────────────────────────────────────────────────
+function encodeShare(text) {
+  try {
+    // btoa needs latin1 — encode UTF-8 first via encodeURIComponent
+    return btoa(encodeURIComponent(text).replace(/%([0-9A-F]{2})/g, (_, p1) => String.fromCharCode(parseInt(p1, 16))));
+  } catch { return null; }
+}
+function decodeShare(b64) {
+  try {
+    return decodeURIComponent(Array.from(atob(b64), c => "%" + c.charCodeAt(0).toString(16).padStart(2, "0")).join(""));
+  } catch { return null; }
+}
+
 export default function App() {
   const [themeName, setThemeName] = useState(() => localStorage.getItem("fix-theme") || "dark");
   const t = T[themeName];
@@ -1344,14 +1521,29 @@ export default function App() {
     return next;
   });
 
+  const [singleResult, setSingleResult]   = useState(null);
+  const [singleInput,  setSingleInput]    = useState("");
+  const [logMessages,  setLogMessages]    = useState(null);
+  const [tagPanel,     setTagPanel]       = useState(null);
+  const [tableFilter,  setTableFilter]    = useState("");
   const [textareaInput, setTextareaInput] = useState("");
-  const [singleResult, setSingleResult] = useState(null);
-  const [singleInput, setSingleInput] = useState("");
-  const [logMessages, setLogMessages] = useState(null);
-  const [tagPanel, setTagPanel] = useState(null);
-  
-  const [tableFilter, setTableFilter] = useState("");
+  const [shareToast,   setShareToast]     = useState(false);
   const filterRef = useRef(null);
+
+  // Load shared message from URL on first mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const shared = params.get("msg");
+    if (shared) {
+      const decoded = decodeShare(shared);
+      if (decoded) {
+        setTextareaInput(decoded);
+        // Remove ?msg= from URL without reload so bookmark is clean
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+    }
+  }, []);
+
 
   // Tab Favicon Injector
   useEffect(() => {
@@ -1435,10 +1627,35 @@ export default function App() {
 
           <div style={{ flex: 1 }} />
           <HeaderTagSearch t={t} onResult={f => setTagPanel(f)} />
+
+          {/* Share button — only shown when there's input to share */}
+          {textareaInput.trim() && (
+            <button
+              onClick={() => {
+                const encoded = encodeShare(textareaInput);
+                if (!encoded) return;
+                const url = `${window.location.origin}${window.location.pathname}?msg=${encoded}`;
+                navigator.clipboard.writeText(url).then(() => {
+                  setShareToast(true);
+                  setTimeout(() => setShareToast(false), 2500);
+                });
+              }}
+              title="Copy shareable link"
+              style={{ height: "32px", padding: "0 12px", borderRadius: "6px", fontSize: "12px", border: "1px solid " + t.border, background: "transparent", color: t.textMuted, cursor: "pointer", whiteSpace: "nowrap" }}
+            >🔗 Share</button>
+          )}
+
           <button onClick={toggleTheme} style={{ height: "32px", padding: "0 12px", borderRadius: "6px", fontSize: "12px", border: "1px solid " + t.border, background: "transparent", color: t.textMuted, cursor: "pointer" }}>
             {themeName === "dark" ? "☀ Light" : "🌙 Dark"}
           </button>
         </header>
+
+        {/* Share toast */}
+        {shareToast && (
+          <div style={{ position: "fixed", bottom: "24px", left: "50%", transform: "translateX(-50%)", zIndex: 9999, background: t.green, color: "#fff", padding: "10px 20px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, boxShadow: t.shadowMd, pointerEvents: "none" }}>
+            ✓ Link copied to clipboard
+          </div>
+        )}
 
         <main style={{ flex: 1, padding: "24px", width: "100%" }}>
           <UnifiedInput t={t} onSingleResult={handleSingleResult} onLogResult={handleLogResult} onClearAll={handleHomeReset} input={textareaInput} setInput={setTextareaInput} />
