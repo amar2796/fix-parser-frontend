@@ -1052,112 +1052,7 @@ function OrderLifecycleView({ messages, t, onSelectMessage }) {
 }
 
 
-function SessionStats({ messages, t }) {
-  const stats = useMemo(() => {
-    const typeCounts = {};
-    let minDt = Infinity, maxDt = 0, totalDt = 0, dtCount = 0;
-    let errorCount = 0;
-    const symbols = new Set();
-    let start = null, end = null;
 
-    messages.forEach((m, i) => {
-      // message type counts
-      const name = m.msgTypeName || m.msgType || "Unknown";
-      typeCounts[name] = (typeCounts[name] || 0) + 1;
-      // validation errors
-      if (m.validationErrors && m.validationErrors.length > 0) errorCount++;
-      // symbols
-      if (m.symbol) symbols.add(m.symbol);
-      // latency
-      if (i > 0) {
-        const dt = (() => {
-          try {
-            const toMs = (s) => {
-              const full = /^(\d{4})(\d{2})(\d{2})-(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?$/.exec(s);
-              if (full) { const [,yr,mo,dy,h,mm,sec,frac] = full; return new Date(`${yr}-${mo}-${dy}T${h}:${mm}:${sec}`).getTime() + (frac ? parseInt(frac.padEnd(3,"0").slice(0,3)) : 0); }
-              return NaN;
-            };
-            const diff = toMs(m.sendingTime) - toMs(messages[i-1].sendingTime);
-            return isNaN(diff) || diff < 0 ? null : diff;
-          } catch { return null; }
-        })();
-        if (dt !== null) { minDt = Math.min(minDt, dt); maxDt = Math.max(maxDt, dt); totalDt += dt; dtCount++; }
-      }
-      // session time range
-      if (m.sendingTime) { if (!start) start = m.sendingTime; end = m.sendingTime; }
-    });
-
-    const avgDt = dtCount > 0 ? totalDt / dtCount : 0;
-    const fmtMs = ms => ms === Infinity || ms === 0 ? "—" : ms < 1000 ? ms.toFixed(0) + "ms" : (ms / 1000).toFixed(2) + "s";
-    const duration = (() => {
-      if (!start || !end) return "—";
-      try {
-        const toMs = (s) => { const full = /^(\d{4})(\d{2})(\d{2})-(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?$/.exec(s); if (full) { const [,yr,mo,dy,h,mm,sec] = full; return new Date(`${yr}-${mo}-${dy}T${h}:${mm}:${sec}`).getTime(); } return NaN; };
-        const ms = toMs(end) - toMs(start);
-        if (isNaN(ms) || ms < 0) return "—";
-        if (ms < 60000) return (ms/1000).toFixed(1) + "s";
-        return Math.floor(ms/60000) + "m " + ((ms%60000)/1000).toFixed(0) + "s";
-      } catch { return "—"; }
-    })();
-
-    // top 5 message types
-    const topTypes = Object.entries(typeCounts).sort((a,b) => b[1]-a[1]).slice(0, 6);
-    const maxCount = topTypes[0]?.[1] || 1;
-
-    return { typeCounts, topTypes, maxCount, minDt, maxDt, avgDt, fmtMs, errorCount, symbols, duration, dtCount };
-  }, [messages]);
-
-  const statCard = (label, value, color) => (
-    <div style={{ background: t.panel, border: "1px solid " + t.border, borderRadius: "8px", padding: "10px 14px", flex: "1 1 120px" }}>
-      <div style={{ fontSize: "10px", color: t.textFaint, letterSpacing: "0.4px", marginBottom: "4px" }}>{label}</div>
-      <div style={{ fontSize: "18px", fontWeight: 700, color: color || t.text, fontFamily: "monospace" }}>{value}</div>
-    </div>
-  );
-
-  return (
-    <div style={{ marginBottom: "16px", background: t.panel, border: "1px solid " + t.border, borderRadius: "10px", overflow: "hidden" }}>
-      {/* Header */}
-      <div style={{ padding: "8px 16px", background: t.panelAlt, borderBottom: "1px solid " + t.border, fontSize: "11px", fontWeight: 600, color: t.textMuted, letterSpacing: "0.5px" }}>
-        SESSION OVERVIEW
-      </div>
-      <div style={{ padding: "14px 16px" }}>
-        {/* Stat cards row */}
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "16px" }}>
-          {statCard("MESSAGES", messages.length)}
-          {statCard("DURATION", stats.duration)}
-          {statCard("AVG LATENCY", stats.fmtMs(stats.avgDt))}
-          {statCard("MIN LATENCY", stats.fmtMs(stats.minDt))}
-          {statCard("MAX LATENCY", stats.fmtMs(stats.maxDt), stats.maxDt > 1000 ? t.red : stats.maxDt > 500 ? t.yellow : t.green)}
-          {statCard("ERRORS", stats.errorCount, stats.errorCount > 0 ? t.red : t.green)}
-          {stats.symbols.size > 0 && statCard("SYMBOLS", stats.symbols.size)}
-        </div>
-
-        {/* Message type breakdown bar chart */}
-        <div style={{ fontSize: "10px", color: t.textFaint, letterSpacing: "0.4px", marginBottom: "8px" }}>MESSAGE TYPE BREAKDOWN</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-          {stats.topTypes.map(([name, count]) => {
-            const badge = badgeFor(name, t);
-            const pct = Math.round((count / stats.maxCount) * 100);
-            return (
-              <div key={name} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <span style={{ fontSize: "10px", fontWeight: 600, padding: "1px 7px", borderRadius: "20px", background: badge.bg, color: badge.fg, border: "0.5px solid " + badge.border, whiteSpace: "nowrap", minWidth: "130px", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</span>
-                <div style={{ flex: 1, height: "6px", background: t.borderSub, borderRadius: "3px", overflow: "hidden" }}>
-                  <div style={{ width: pct + "%", height: "100%", background: badge.border, borderRadius: "3px", transition: "width 0.3s ease" }} />
-                </div>
-                <span style={{ fontSize: "11px", color: t.textMuted, fontFamily: "monospace", minWidth: "28px", textAlign: "right" }}>{count}</span>
-              </div>
-            );
-          })}
-        </div>
-        {stats.symbols.size > 0 && (
-          <div style={{ marginTop: "12px", fontSize: "10px", color: t.textFaint }}>
-            SYMBOLS TRADED: <span style={{ color: t.text, fontFamily: "monospace" }}>{[...stats.symbols].join(", ")}</span>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 function abbrevMsgType(msgTypeName, msgType) {
   const map = {
     "New Order Single":                  "NOS",
@@ -1273,9 +1168,6 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
 
   return (
     <div style={{ marginTop: "20px" }}>
-      {/* ── Session stats panel ── */}
-      <SessionStats messages={messages} t={t} />
-
       {/* ── Order lifecycle view ── */}
       <OrderLifecycleView messages={messages} t={t} onSelectMessage={(idx) => { setSelectedIdx(idx); setDetailMode("table"); setTableFilter(""); }} />
 
