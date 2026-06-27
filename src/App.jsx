@@ -336,7 +336,7 @@ function ThemedAnatomyBar({ result, originalInput, stepIdx = null, onClickField 
               onMouseLeave={() => setHoveredField(null)}
               onMouseMove={handleMouseMove}
               style={{
-                display: "inline-block", padding: "2px 6px", marginRight: "3px", marginBottom: "2px",
+                display: "inline-block", padding: "2px 5px", marginRight: "2px", marginBottom: "3px",
                 borderRadius: "4px", cursor: field ? "pointer" : "default",
                 transition: "all 0.12s",
                 background: isCurrent ? sc.border : sc.bg,
@@ -377,7 +377,7 @@ function ThemedAnatomyBar({ result, originalInput, stepIdx = null, onClickField 
 
 // ─── Field Table ──────────────────────────────────────────────────────────────
 // ─── FieldTable — accordion section ──────────────────────────────────────────
-function FieldTable({ rows, sectionKey, t, onTagClick, filterText, isOpen, onToggle, sectionRef }) {
+function FieldTable({ rows, sectionKey, t, onTagClick, filterText, isOpen, onToggle, sectionRef, isMobile }) {
   const sc = t.sections[sectionKey];
   if (!rows || rows.length === 0) return null;
 
@@ -408,20 +408,20 @@ function FieldTable({ rows, sectionKey, t, onTagClick, filterText, isOpen, onTog
       onMouseEnter={e => e.currentTarget.style.background = sc.border + "12"}
       onMouseLeave={e => e.currentTarget.style.background = rowIndex % 2 === 0 ? "transparent" : t.panelAlt + "88"}
     >
-      <td style={{ padding: "6px 10px", whiteSpace: "nowrap" }}>
-        <span style={{ fontFamily: "ui-monospace,monospace", fontSize: "10px", fontWeight: 700, color: sc.border, background: sc.border + "1a", padding: "2px 7px", borderRadius: "4px" }}>{r.tag}</span>
+      <td style={{ padding: isMobile ? "5px 6px" : "6px 10px", whiteSpace: "nowrap" }}>
+        <span style={{ fontFamily: "ui-monospace,monospace", fontSize: "10px", fontWeight: 700, color: sc.border, background: sc.border + "1a", padding: isMobile ? "1px 5px" : "2px 7px", borderRadius: "4px" }}>{r.tag}</span>
       </td>
-      <td style={{ padding: "6px 10px", fontSize: "12px", color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+      <td style={{ padding: isMobile ? "5px 6px" : "6px 10px", fontSize: isMobile ? "11px" : "12px", color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {r.name}
-        {r.isUnknownTag && <span style={{ fontSize: "9px", fontWeight: 700, color: t.red, background: t.redBg, padding: "1px 5px", borderRadius: "3px", marginLeft: "6px" }}>UNKNOWN</span>}
+        {r.isUnknownTag && <span style={{ fontSize: "9px", fontWeight: 700, color: t.red, background: t.redBg, padding: "1px 5px", borderRadius: "3px", marginLeft: "4px" }}>?</span>}
       </td>
-      <td style={{ padding: "6px 10px", fontFamily: "ui-monospace,monospace", fontSize: "11px", color: t.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.raw}</td>
-      <td style={{ padding: "6px 10px", fontSize: "12px", color: r.meaning && r.meaning !== r.raw ? t.text : t.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: r.meaning && r.meaning !== r.raw ? 500 : 400 }}>{r.meaning || "—"}</td>
-      <td style={{ padding: "6px 6px", textAlign: "center" }}>
+      <td style={{ padding: isMobile ? "5px 6px" : "6px 10px", fontFamily: "ui-monospace,monospace", fontSize: "11px", color: t.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.raw}</td>
+      {!isMobile && <td style={{ padding: "6px 10px", fontSize: "12px", color: r.meaning && r.meaning !== r.raw ? t.text : t.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: r.meaning && r.meaning !== r.raw ? 500 : 400 }}>{r.meaning || "—"}</td>}
+      <td style={{ padding: isMobile ? "4px 3px" : "6px 6px", textAlign: "center" }}>
         <button
           onClick={() => onTagClick && onTagClick(r)}
-          title="Open tag reference"
-          style={{ background: "none", border: "1px solid transparent", cursor: "pointer", fontSize: "11px", color: t.textFaint, padding: "2px 6px", borderRadius: "4px", transition: "all 0.1s" }}
+          title={isMobile ? r.meaning || r.name : "Open tag reference"}
+          style={{ background: "none", border: "1px solid transparent", cursor: "pointer", fontSize: "11px", color: t.textFaint, padding: isMobile ? "2px 4px" : "2px 6px", borderRadius: "4px", transition: "all 0.1s" }}
           onMouseEnter={e => { e.currentTarget.style.color = t.accent; e.currentTarget.style.borderColor = t.accent; e.currentTarget.style.background = t.accentBg; }}
           onMouseLeave={e => { e.currentTarget.style.color = t.textFaint; e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.background = "none"; }}
         >↗</button>
@@ -475,16 +475,16 @@ function FieldTable({ rows, sectionKey, t, onTagClick, filterText, isOpen, onTog
         <div style={{ background: t.panel }}>
           <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
             <colgroup>
-              <col style={{ width: "52px" }} />
-              <col style={{ width: "190px" }} />
-              <col style={{ width: "180px" }} />
-              <col />
-              <col style={{ width: "32px" }} />
+              <col style={{ width: isMobile ? "42px" : "52px" }} />
+              <col style={{ width: isMobile ? "auto" : "190px" }} />
+              <col style={{ width: isMobile ? "90px" : "180px" }} />
+              {!isMobile && <col />}
+              <col style={{ width: "28px" }} />
             </colgroup>
             <thead>
               <tr style={{ borderBottom: "1px solid " + t.border, background: sc.border + "0d", borderLeft: "3px solid " + sc.border }}>
-                {["Tag", "Field Name", "Raw Value", "Meaning", ""].map((h, i) => (
-                  <th key={i} style={{ padding: "6px 10px", textAlign: "left", fontSize: "10px", fontWeight: 700, color: i === 0 ? sc.border : t.textFaint, letterSpacing: "0.5px", whiteSpace: "nowrap" }}>{h}</th>
+                {(isMobile ? ["Tag", "Field Name", "Raw Value", ""] : ["Tag", "Field Name", "Raw Value", "Meaning", ""]).map((h, i) => (
+                  <th key={i} style={{ padding: isMobile ? "5px 6px" : "6px 10px", textAlign: "left", fontSize: "10px", fontWeight: 700, color: i === 0 ? sc.border : t.textFaint, letterSpacing: "0.5px", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -503,7 +503,7 @@ function FieldTable({ rows, sectionKey, t, onTagClick, filterText, isOpen, onTog
 }
 
 // ─── FieldSections — sticky jump bar + three accordion FieldTables ────────────
-function FieldSections({ result, t, onTagClick, filterText }) {
+function FieldSections({ result, t, onTagClick, filterText, isMobile }) {
   const SECTIONS = ["header", "body", "trailer"];
   const [openMap, setOpenMap] = useState({ header: true, body: true, trailer: true });
   const headerRef = useRef(null);
@@ -530,13 +530,14 @@ function FieldSections({ result, t, onTagClick, filterText }) {
     <div>
       {/* ── Sticky jump + toggle bar ── */}
       <div style={{
-        display: "flex", alignItems: "center", gap: "8px",
-        padding: "8px 0", marginBottom: "12px",
+        display: "flex", alignItems: "center", gap: isMobile ? "5px" : "8px",
+        padding: "6px 0", marginBottom: "10px",
         position: "sticky", top: 0, zIndex: 10,
         background: t.page,
         borderBottom: "1px solid " + t.borderSub,
+        overflow: "hidden",
       }}>
-        <span style={{ fontSize: "10px", fontWeight: 600, color: t.textFaint, marginRight: "4px", letterSpacing: "0.6px", whiteSpace: "nowrap" }}>JUMP TO</span>
+        {!isMobile && <span style={{ fontSize: "10px", fontWeight: 600, color: t.textFaint, marginRight: "4px", letterSpacing: "0.6px", whiteSpace: "nowrap" }}>JUMP TO</span>}
 
         {SECTIONS.map(key => {
           if (!hasRows(key)) return null;
@@ -555,25 +556,25 @@ function FieldSections({ result, t, onTagClick, filterText }) {
               overflow: "hidden", flexShrink: 0,
               boxShadow: open ? "0 0 0 3px " + sc.border + "20" : "none",
               transition: "border-color 0.15s, box-shadow 0.15s",
-              height: "30px",
+              height: isMobile ? "26px" : "30px",
             }}>
               {/* Main pill: icon + label + count — click scrolls to section */}
               <button
                 onClick={() => jumpTo(key)}
                 title={"Jump to " + sc.label}
                 style={{
-                  display: "flex", alignItems: "center", gap: "5px",
-                  padding: "0 10px 0 10px",
+                  display: "flex", alignItems: "center", gap: isMobile ? "3px" : "5px",
+                  padding: isMobile ? "0 6px" : "0 10px",
                   background: open ? sc.border : "transparent",
                   color: open ? "#fff" : sc.border,
                   border: "none", cursor: "pointer",
-                  fontSize: "11px", fontWeight: 700, letterSpacing: "0.3px",
+                  fontSize: isMobile ? "10px" : "11px", fontWeight: 700, letterSpacing: "0.3px",
                   transition: "background 0.15s, color 0.15s",
                   whiteSpace: "nowrap",
                 }}
               >
-                <span style={{ fontSize: "12px", opacity: open ? 0.85 : 1 }}>{icon}</span>
-                {sc.label}
+                <span style={{ fontSize: isMobile ? "10px" : "12px" }}>{icon}</span>
+                {isMobile ? sc.label.slice(0, 3) : sc.label}
                 <span style={{
                   fontSize: "10px", fontWeight: 800,
                   padding: "0px 5px", borderRadius: "10px",
@@ -598,7 +599,7 @@ function FieldSections({ result, t, onTagClick, filterText }) {
                 title={open ? "Collapse " + sc.label : "Expand " + sc.label}
                 style={{
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  width: "26px",
+                  width: isMobile ? "22px" : "26px",
                   background: open ? sc.border + "cc" : "transparent",
                   color: open ? "#fff" : sc.border,
                   border: "none", cursor: "pointer",
@@ -619,8 +620,8 @@ function FieldSections({ result, t, onTagClick, filterText }) {
         <button
           onClick={() => setOpenMap({ header: !anyOpen, body: !anyOpen, trailer: !anyOpen })}
           style={{
-            marginLeft: "auto", fontSize: "10px", fontWeight: 500,
-            padding: "4px 10px", borderRadius: "6px",
+            marginLeft: "auto", flexShrink: 0, fontSize: "10px", fontWeight: 500,
+            padding: isMobile ? "3px 6px" : "4px 10px", borderRadius: "6px",
             border: "1px solid " + t.border,
             background: "transparent", color: t.textFaint,
             cursor: "pointer", whiteSpace: "nowrap",
@@ -629,11 +630,10 @@ function FieldSections({ result, t, onTagClick, filterText }) {
           onMouseEnter={e => { e.currentTarget.style.color = t.text; e.currentTarget.style.borderColor = t.textMuted; }}
           onMouseLeave={e => { e.currentTarget.style.color = t.textFaint; e.currentTarget.style.borderColor = t.border; }}
         >
-          {anyOpen ? "↑ Collapse all" : "↓ Expand all"}
+          {anyOpen ? (isMobile ? "↑" : "↑ Collapse all") : (isMobile ? "↓" : "↓ Expand all")}
         </button>
       </div>
 
-      {/* ── Three accordion sections ── */}
       {SECTIONS.map(key => (
         <FieldTable
           key={key}
@@ -645,6 +645,7 @@ function FieldSections({ result, t, onTagClick, filterText }) {
           isOpen={openMap[key]}
           onToggle={() => toggle(key)}
           sectionRef={refs[key]}
+          isMobile={isMobile}
         />
       ))}
     </div>
@@ -813,7 +814,7 @@ function TagPanel({ field, onClose, t, isMobile }) {
           <div style={{ marginBottom: "20px" }}>
             <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
               <div style={{
-                fontFamily: "monospace", fontSize: "36px", fontWeight: 800,
+                fontFamily: "monospace", fontSize: isMobile ? "28px" : "36px", fontWeight: 800,
                 color: t.accent, lineHeight: 1,
                 background: t.accentBg, padding: "6px 12px", borderRadius: "8px",
                 border: "1px solid " + t.accent + "33", flexShrink: 0,
@@ -933,7 +934,7 @@ function SingleResult({ result, originalInput, t, onTagClick, filterRef, tableFi
           ["Checksum",  result.checksum.actual + " (calc " + result.checksum.calculated + ")"],
           ["Body len",  result.bodyLength.actual + " (calc " + result.bodyLength.calculated + ")"],
         ].map(([k, v]) => (
-          <div key={k} style={{ padding: "7px 12px", background: t.panel, border: "1px solid " + t.border, borderRadius: "7px", flex: "1 1 160px" }}>
+          <div key={k} style={{ padding: "7px 10px", background: t.panel, border: "1px solid " + t.border, borderRadius: "7px", flex: "1 1 130px", minWidth: 0 }}>
             <div style={{ fontSize: "10px", color: t.textMuted }}>{k.toUpperCase()}</div>
             <div style={{ fontSize: "13px", fontWeight: 600, color: t.text, fontFamily: "monospace" }}>{v}</div>
           </div>
@@ -943,22 +944,19 @@ function SingleResult({ result, originalInput, t, onTagClick, filterRef, tableFi
       <ValidationBanner result={result} t={t} />
       <ExecutionSummaryVisualizer result={result} t={t} />
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", marginBottom: "14px", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: isMobile ? "stretch" : "center", gap: "8px", marginBottom: "12px" }}>
         <div style={{ display: "flex", gap: "6px" }}>
           {["table", "walkthrough"].map(v => (
-            <button key={v} onClick={() => setSubView(v)} style={{ padding: "5px 14px", borderRadius: "6px", fontSize: "12px", fontWeight: subView === v ? 600 : 400, border: "1.5px solid " + (subView === v ? t.accent : t.border), background: subView === v ? t.accentBg : "transparent", color: subView === v ? t.accent : t.textMuted, cursor: "pointer", transition: "all 0.12s" }}>{v === "table" ? "⊞ Table" : "▶ Walkthrough"}</button>
+            <button key={v} onClick={() => setSubView(v)} style={{ padding: "5px 14px", borderRadius: "6px", fontSize: "12px", fontWeight: subView === v ? 600 : 400, border: "1.5px solid " + (subView === v ? t.accent : t.border), background: subView === v ? t.accentBg : "transparent", color: subView === v ? t.accent : t.textMuted, cursor: "pointer", transition: "all 0.12s", flex: isMobile ? 1 : "none", textAlign: "center" }}>{v === "table" ? "⊞ Table" : "▶ Walkthrough"}</button>
           ))}
         </div>
-
         {subView === "table" && (
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: "1", maxWidth: "400px" }}>
-            <input ref={filterRef} type="text" value={tableFilter} onChange={e => setTableFilter(e.target.value)} placeholder="🔍 Filter fields... (Press '/' to focus)" style={{ width: "100%", height: "32px", padding: "0 10px", borderRadius: "6px", fontSize: "12px", border: "1px solid " + t.border, background: t.inputBg, color: t.text, outline: "none" }} />
-          </div>
+          <input ref={filterRef} type="text" value={tableFilter} onChange={e => setTableFilter(e.target.value)} placeholder={isMobile ? "Filter fields…" : "🔍 Filter fields… (Press '/' to focus)"} style={{ width: "100%", maxWidth: isMobile ? "none" : "340px", height: "32px", padding: "0 10px", borderRadius: "6px", fontSize: "16px", border: "1px solid " + t.border, background: t.inputBg, color: t.text, outline: "none" }} />
         )}
       </div>
 
       {subView === "table" ? (
-        <FieldSections result={result} t={t} onTagClick={onTagClick} filterText={tableFilter} />
+        <FieldSections result={result} t={t} onTagClick={onTagClick} filterText={tableFilter} isMobile={isMobile} />
       ) : (
         <Walkthrough result={result} originalInput={originalInput} t={t} />
       )}
@@ -1049,7 +1047,7 @@ function OrderLifecycleView({ messages, t, onSelectMessage }) {
         onMouseLeave={e => e.currentTarget.style.background = t.panelAlt}
       >
         {/* Title */}
-        <span style={{ fontSize: "11px", fontWeight: 700, color: t.textMuted, letterSpacing: "0.5px" }}>ORDER LIFECYCLE</span>
+        <span style={{ fontSize: "11px", fontWeight: 700, color: t.textMuted, letterSpacing: "0.3px", whiteSpace: "nowrap" }}>ORDER LIFECYCLE</span>
 
         {/* Summary chips — always visible even when closed */}
         <span style={{ fontSize: "10px", padding: "1px 8px", borderRadius: "20px", background: t.accentBg, color: t.accent, border: "0.5px solid " + t.accent, fontWeight: 600 }}>{chains.length} order{chains.length !== 1 ? "s" : ""}</span>
@@ -1439,22 +1437,20 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
                 <ThemedAnatomyBar result={sel} originalInput={sel.rawMessage} t={t} />
               </div>
             )}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", marginBottom: "12px", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: isMobile ? "stretch" : "center", gap: "8px", marginBottom: "12px" }}>
               <div style={{ display: "flex", gap: "6px" }}>
                 {["table", "walkthrough"].map(v => (
-                  <button key={v} onClick={() => setDetailMode(v)} style={{ padding: "5px 14px", borderRadius: "6px", fontSize: "12px", fontWeight: detailMode === v ? 600 : 400, border: "1.5px solid " + (detailMode === v ? t.accent : t.border), background: detailMode === v ? t.accentBg : "transparent", color: detailMode === v ? t.accent : t.textMuted, cursor: "pointer", transition: "all 0.12s" }}>
+                  <button key={v} onClick={() => setDetailMode(v)} style={{ padding: "5px 14px", borderRadius: "6px", fontSize: "12px", fontWeight: detailMode === v ? 600 : 400, border: "1.5px solid " + (detailMode === v ? t.accent : t.border), background: detailMode === v ? t.accentBg : "transparent", color: detailMode === v ? t.accent : t.textMuted, cursor: "pointer", transition: "all 0.12s", flex: isMobile ? 1 : "none", textAlign: "center" }}>
                     {v === "table" ? "⊞ Table" : "▶ Walkthrough"}
                   </button>
                 ))}
               </div>
               {detailMode === "table" && (
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: "1", maxWidth: "400px" }}>
-                  <input ref={filterRef} type="text" value={tableFilter} onChange={e => setTableFilter(e.target.value)} placeholder="🔍 Filter fields… (Press '/' to focus)" style={{ width: "100%", height: "32px", padding: "0 10px", borderRadius: "6px", fontSize: "12px", border: "1px solid " + t.border, background: t.inputBg, color: t.text, outline: "none" }} />
-                </div>
+                <input ref={filterRef} type="text" value={tableFilter} onChange={e => setTableFilter(e.target.value)} placeholder={isMobile ? "Filter fields…" : "🔍 Filter fields… (Press '/' to focus)"} style={{ width: "100%", maxWidth: isMobile ? "none" : "340px", height: "32px", padding: "0 10px", borderRadius: "6px", fontSize: "16px", border: "1px solid " + t.border, background: t.inputBg, color: t.text, outline: "none" }} />
               )}
             </div>
             {detailMode === "table" ? (
-              <FieldSections result={sel} t={t} onTagClick={onTagClick} filterText={tableFilter} />
+              <FieldSections result={sel} t={t} onTagClick={onTagClick} filterText={tableFilter} isMobile={isMobile} />
             ) : sel.rawMessage ? (
               <Walkthrough result={sel} originalInput={sel.rawMessage} t={t} />
             ) : null}
@@ -1650,7 +1646,7 @@ function PopularTagsGrid({ t, onTagClick }) {
           ⚠ Backend enrichment unavailable — showing local data. The service may be starting up (this can take ~30s on first load).
         </div>
       )}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "6px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: "6px" }}>
         {POPULAR_TAGS.map(([tag, name]) => (
           <button key={tag} onClick={() => doLookup(tag)} style={{ textAlign: "left", padding: "10px 12px", borderRadius: "8px", border: "1px solid " + t.border, background: t.panel, cursor: "pointer", opacity: loadingTag === tag ? 0.6 : 1, transition: "opacity 0.15s" }}>
             <div style={{ fontSize: "10px", color: t.textFaint, fontFamily: "monospace" }}>TAG {tag}</div>
