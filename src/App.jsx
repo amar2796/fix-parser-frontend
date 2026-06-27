@@ -751,7 +751,7 @@ function Walkthrough({ result, originalInput, t }) {
 
 // ─── Tag Panel ───────────────────────────────────────────────────────────────
 // Slide-in drawer component for looking up extensive tag definitions
-function TagPanel({ field, onClose, t }) {
+function TagPanel({ field, onClose, t, isMobile }) {
   if (!field) return null;
 
   useEffect(() => {
@@ -764,15 +764,29 @@ function TagPanel({ field, onClose, t }) {
 
   return (
     <>
-      <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 199, background: "transparent" }} />
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 199, background: isMobile ? "rgba(0,0,0,0.5)" : "transparent" }} />
       <div style={{
-        position: "fixed", top: 0, right: 0, bottom: 0, width: "360px",
-        background: t.panel, borderLeft: "1px solid " + t.border,
-        boxShadow: "-4px 0 24px rgba(0,0,0,0.25)", zIndex: 200,
-        display: "flex", flexDirection: "column",
-        animation: "slideIn 0.2s cubic-bezier(0.22,1,0.36,1)",
+        position: "fixed",
+        top: isMobile ? "auto" : 0,
+        bottom: isMobile ? 0 : "auto",
+        right: 0,
+        left: isMobile ? 0 : "auto",
+        width: isMobile ? "100%" : "360px",
+        maxHeight: isMobile ? "85vh" : "100vh",
+        background: t.panel, borderLeft: isMobile ? "none" : "1px solid " + t.border,
+        borderTop: isMobile ? "1px solid " + t.border : "none",
+        borderRadius: isMobile ? "16px 16px 0 0" : "0",
+        boxShadow: isMobile ? "0 -4px 24px rgba(0,0,0,0.3)" : "-4px 0 24px rgba(0,0,0,0.25)",
+        zIndex: 200, display: "flex", flexDirection: "column",
+        animation: isMobile ? "slideUp 0.22s cubic-bezier(0.22,1,0.36,1)" : "slideIn 0.2s cubic-bezier(0.22,1,0.36,1)",
       }}>
-        <style>{`@keyframes slideIn { from { transform: translateX(48px); opacity:0; } to { transform:none; opacity:1; } }`}</style>
+        <style>{`
+          @keyframes slideIn { from { transform: translateX(48px); opacity:0; } to { transform:none; opacity:1; } }
+          @keyframes slideUp { from { transform: translateY(60px); opacity:0; } to { transform:none; opacity:1; } }
+        `}</style>
+
+        {/* Mobile drag handle */}
+        {isMobile && <div style={{ width: "40px", height: "4px", borderRadius: "2px", background: t.border, margin: "10px auto 4px" }} />}
 
         {/* Header */}
         <div style={{
@@ -857,7 +871,7 @@ function TagPanel({ field, onClose, t }) {
 }
 
 // ─── Header Tag Search ────────────────────────────────────────────────────────
-function HeaderTagSearch({ t, onResult }) {
+function HeaderTagSearch({ t, onResult, isMobile }) {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -887,16 +901,16 @@ function HeaderTagSearch({ t, onResult }) {
             value={query}
             onChange={e => { setQuery(e.target.value); setError(null); }}
             onKeyDown={e => { if (e.key === "Enter") doSearch(query); }}
-            placeholder="Tag lookup…"
-            style={{ paddingLeft: "28px", height: "32px", borderRadius: "6px", fontSize: "12px", width: "140px", border: "1px solid " + (error ? t.red : t.border), background: t.inputBg, color: t.text, outline: "none" }}
+            placeholder={isMobile ? "#…" : "Tag lookup…"}
+            style={{ paddingLeft: "28px", height: "32px", borderRadius: "6px", fontSize: "16px", width: isMobile ? "72px" : "140px", border: "1px solid " + (error ? t.red : t.border), background: t.inputBg, color: t.text, outline: "none" }}
           />
         </div>
         <button
           onClick={() => doSearch(query)}
           disabled={loading}
-          style={{ height: "32px", padding: "0 12px", borderRadius: "6px", fontSize: "12px", background: t.accentBg, color: t.accent, border: "1px solid " + t.accent, cursor: loading ? "wait" : "pointer", opacity: loading ? 0.7 : 1 }}
+          style={{ height: "32px", padding: isMobile ? "0 8px" : "0 12px", borderRadius: "6px", fontSize: "12px", background: t.accentBg, color: t.accent, border: "1px solid " + t.accent, cursor: loading ? "wait" : "pointer", opacity: loading ? 0.7 : 1, whiteSpace: "nowrap" }}
         >
-          {loading ? "…" : "Look up"}
+          {loading ? "…" : isMobile ? "↗" : "Look up"}
         </button>
       </div>
       {error && <div style={{ fontSize: "10px", color: t.red, maxWidth: "220px", textAlign: "right" }}>{error}</div>}
@@ -905,7 +919,7 @@ function HeaderTagSearch({ t, onResult }) {
 }
 
 // ─── Single Message Result ────────────────────────────────────────────────────
-function SingleResult({ result, originalInput, t, onTagClick, filterRef, tableFilter, setTableFilter }) {
+function SingleResult({ result, originalInput, t, onTagClick, filterRef, tableFilter, setTableFilter, isMobile }) {
   const [subView, setSubView] = useState("table");
 
   return (
@@ -1239,7 +1253,7 @@ function abbrevMsgType(msgTypeName, msgType) {
 }
 
 // ─── Session / Log Result ────────────────────────────────────────────────────
-function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTableFilter }) {
+function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTableFilter, isMobile }) {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [detailMode, setDetailMode] = useState("table");
   const [logFilter, setLogFilter] = useState("");
@@ -1326,9 +1340,9 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
       {/* ── Order lifecycle view ── */}
       <OrderLifecycleView messages={messages} t={t} onSelectMessage={(idx) => { setSelectedIdx(idx); setDetailMode("table"); setTableFilter(""); }} />
 
-      <div style={{ display: "flex", gap: "16px", alignItems: "flex-start" }}>
+      <div style={{ display: "flex", gap: "16px", alignItems: "flex-start", flexDirection: isMobile ? "column" : "row" }}>
       {/* ── Left: Log table ── */}
-      <div style={{ flex: "0 0 560px", minWidth: "320px" }}>
+      <div style={{ flex: isMobile ? "none" : "0 0 560px", width: isMobile ? "100%" : undefined, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px", gap: "8px", flexWrap: "wrap" }}>
           <span style={{ fontSize: "11px", fontWeight: 600, color: t.textMuted, whiteSpace: "nowrap" }}>
             TIMELINE · {messages.length} MESSAGES
@@ -1349,15 +1363,18 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
           <div ref={tableRef} style={{ overflowY: "auto", maxHeight: "70vh" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
               <colgroup>
-                <col style={{ width: "32px" }} />
-                <col style={{ width: "90px" }} />
-                <col style={{ width: "160px" }} />
-                <col />
-                <col style={{ width: "54px" }} />
+                <col style={{ width: "28px" }} />
+                <col style={{ width: isMobile ? "70px" : "90px" }} />
+                <col style={{ width: isMobile ? "120px" : "160px" }} />
+                {!isMobile && <col />}
+                <col style={{ width: isMobile ? "54px" : "54px" }} />
               </colgroup>
               <thead>
                 <tr style={{ background: t.panelAlt, position: "sticky", top: 0, zIndex: 1, boxShadow: "0 1px 0 " + t.border }}>
-                  {[["#","right"],["Time","left"],["Type","left"],["Summary","left"],["Δt","right"]].map(([label, align]) => (
+                  {(isMobile
+                    ? [["#","right"],["Time","left"],["Type","left"],["Δt","right"]]
+                    : [["#","right"],["Time","left"],["Type","left"],["Summary","left"],["Δt","right"]]
+                  ).map(([label, align]) => (
                     <th key={label} style={{ padding: "6px 8px", fontSize: "10px", fontWeight: 700, color: t.textFaint, textAlign: align, borderBottom: "2px solid " + t.border, letterSpacing: "0.5px" }}>
                       {label}
                     </th>
@@ -1387,13 +1404,11 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
                       <td style={{ ...cellBase, textAlign: "right", color: t.textFaint, fontFamily: "monospace", paddingRight: "6px" }}>{i + 1}</td>
                       <td style={{ ...cellBase, fontFamily: "monospace", color: t.textMuted, fontSize: "10px", paddingLeft: "8px" }}>{timeStr}</td>
                       <td style={{ ...cellBase, paddingLeft: "8px" }}>
-                        <span style={{ display: "inline-block", fontSize: "10px", fontWeight: 600, padding: "1px 8px", borderRadius: "20px", background: badge.bg, color: badge.fg, border: "0.5px solid " + badge.border, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "152px" }}>
+                        <span style={{ display: "inline-block", fontSize: "10px", fontWeight: 600, padding: "1px 8px", borderRadius: "20px", background: badge.bg, color: badge.fg, border: "0.5px solid " + badge.border, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: isMobile ? "110px" : "152px" }}>
                           {fullName}
                         </span>
                       </td>
-                      <td style={{ ...cellBase, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", paddingLeft: "8px" }}>
-                        {m.summary}
-                      </td>
+                      {!isMobile && <td style={{ ...cellBase, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", paddingLeft: "8px" }}>{m.summary}</td>}
                       <td style={{ ...cellBase, textAlign: "right", fontFamily: "monospace", fontSize: "10px", paddingRight: "8px", color: dtColor(timeDelta), fontWeight: timeDelta && parseFloat(timeDelta) * (timeDelta.includes("s") && !timeDelta.includes("ms") ? 1000 : 1) >= spikeMs ? 700 : 400 }}>
                         {timeDelta || "—"}
                       </td>
@@ -1452,7 +1467,7 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
 }
 
 // ─── Unified Input ────────────────────────────────────────────────────────────
-function UnifiedInput({ t, onSingleResult, onLogResult, onClearAll, input, setInput }) {
+function UnifiedInput({ t, onSingleResult, onLogResult, onClearAll, input, setInput, isMobile }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [fileName, setFileName] = useState(null);
@@ -1522,58 +1537,63 @@ function UnifiedInput({ t, onSingleResult, onLogResult, onClearAll, input, setIn
 
   return (
     <Card t={t}>
-      <div style={{ padding: "14px 18px", borderBottom: "1px solid " + t.border, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <div>
-            <div style={{ fontSize: "13px", fontWeight: 600, color: t.text }}>Paste a FIX message or log</div>
-            <div style={{ fontSize: "11px", color: t.textMuted, marginTop: "1px" }}>Secure SSL TLS encrypted verification engine</div>
+      <div style={{ padding: isMobile ? "10px 12px" : "14px 18px", borderBottom: "1px solid " + t.border }}>
+        {/* Title row */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "6px", marginBottom: "8px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+            {!isMobile && <div style={{ fontSize: "13px", fontWeight: 600, color: t.text }}>Paste a FIX message or log</div>}
+            {mode && <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "20px", background: mode === "log" ? t.purpleBg : t.accentBg, color: mode === "log" ? t.purple : t.accent, border: "1px solid " + (mode === "log" ? t.purple : t.accent) }}>{mode === "log" ? "LOG · " + countFixStarts(input) + " MSG" : "SINGLE"}</span>}
+            {containsSOH && <span style={{ padding: "2px 6px", background: t.yellowBg, color: t.yellow, border: "1px solid " + t.yellow, borderRadius: "4px", fontSize: "10px", fontWeight: 600 }}>⚠️ SOH</span>}
           </div>
-          {containsSOH && (
-            <span style={{ padding: "3px 8px", background: t.yellowBg, color: t.yellow, border: "1px solid " + t.yellow, borderRadius: "4px", fontSize: "11px", fontWeight: 600 }}>⚠️ SOH detected — auto-converts on parse</span>
-          )}
-        </div>
-        <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
-          {mode && <span style={{ fontSize: "10px", fontWeight: 700, padding: "3px 8px", borderRadius: "20px", background: mode === "log" ? t.purpleBg : t.accentBg, color: mode === "log" ? t.purple : t.accent, border: "1px solid " + (mode === "log" ? t.purple : t.accent) }}>{mode === "log" ? "LOG · " + countFixStarts(input) + " MSG" : "SINGLE MSG"}</span>}
-
-          {history.length > 0 && (
-            <div ref={historyRef} style={{ position: "relative" }}>
-              <Btn t={t} onClick={() => setShowHistory(v => !v)}>🕐 History</Btn>
-              {showHistory && (
-                <div style={{ position: "absolute", right: 0, top: "36px", zIndex: 50, background: t.panel, border: "1px solid " + t.border, borderRadius: "8px", boxShadow: t.shadowMd, minWidth: "300px", maxHeight: "280px", overflowY: "auto" }}>
-                  {history.map((h, i) => (
-                    <div key={i} onClick={() => { setInput(h.text); setShowHistory(false); setFileName(null); setError(null); }}
-                      style={{ padding: "8px 12px", cursor: "pointer", borderBottom: i < history.length - 1 ? "1px solid " + t.borderSub : "none" }}
-                      onMouseEnter={e => e.currentTarget.style.background = t.panelAlt}
+          {/* Action buttons — wrap on mobile */}
+          <div style={{ display: "flex", gap: "5px", alignItems: "center", flexWrap: "wrap" }}>
+            {history.length > 0 && (
+              <div ref={historyRef} style={{ position: "relative" }}>
+                <Btn t={t} onClick={() => setShowHistory(v => !v)}>🕐{!isMobile && " History"}</Btn>
+                {showHistory && (
+                  <div style={{ position: "absolute", right: 0, top: "36px", zIndex: 50, background: t.panel, border: "1px solid " + t.border, borderRadius: "8px", boxShadow: t.shadowMd, minWidth: isMobile ? "240px" : "300px", maxHeight: "280px", overflowY: "auto" }}>
+                    {history.map((h, i) => (
+                      <div key={i} onClick={() => { setInput(h.text); setShowHistory(false); setFileName(null); setError(null); }}
+                        style={{ padding: "8px 12px", cursor: "pointer", borderBottom: i < history.length - 1 ? "1px solid " + t.borderSub : "none" }}
+                        onMouseEnter={e => e.currentTarget.style.background = t.panelAlt}
+                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                      >
+                        <div style={{ fontSize: "11px", color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.label}</div>
+                        <div style={{ fontSize: "10px", color: t.textFaint, marginTop: "2px" }}>{new Date(h.time).toLocaleString()} · {h.count} msg{h.count !== 1 ? "s" : ""}</div>
+                      </div>
+                    ))}
+                    <div onClick={() => { setHistory([]); localStorage.removeItem("fix-history"); setShowHistory(false); }}
+                      style={{ padding: "8px 12px", cursor: "pointer", color: t.red, fontSize: "11px", textAlign: "center", borderTop: "1px solid " + t.border }}
+                      onMouseEnter={e => e.currentTarget.style.background = t.redBg}
                       onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                    >
-                      <div style={{ fontSize: "11px", color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.label}</div>
-                      <div style={{ fontSize: "10px", color: t.textFaint, marginTop: "2px" }}>{new Date(h.time).toLocaleString()} · {h.count} msg{h.count !== 1 ? "s" : ""}</div>
-                    </div>
-                  ))}
-                  <div onClick={() => { setHistory([]); localStorage.removeItem("fix-history"); setShowHistory(false); }}
-                    style={{ padding: "8px 12px", cursor: "pointer", color: t.red, fontSize: "11px", textAlign: "center", borderTop: "1px solid " + t.border }}
-                    onMouseEnter={e => e.currentTarget.style.background = t.redBg}
-                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                  >Clear history</div>
-                </div>
-              )}
-            </div>
-          )}
-
-          <Btn t={t} onClick={() => fileRef.current && fileRef.current.click()}>📁 Upload</Btn>
-          <input ref={fileRef} type="file" accept=".txt,.log,.fix,.csv" onChange={handleFile} style={{ display: "none" }} />
-          <Btn t={t} onClick={() => { setInput("8=FIX.4.2|9=458|35=W|34=3|49=TT_PRICE|52=20260615-10:25:15.627|56=QALGOMARKET|15=USD|48=14347306835933645772|55=GC|100=XCEC|107=Gold 100 oz|167=FUT|200=202608|205=27|207=CME|262=218888029250001|268=10|269=0|270=43593|271=3|290=1|269=1|270=43598|271=1|290=1|269=Y|270=43591|271=1|290=1|269=Z|270=43603|271=1|290=1|269=B|271=58663|269=x|270=43597|271=1|269=6|270=42388|272=20260612|273=00:00:00|269=4|270=42894|269=7|270=43661|269=8|270=42834|460=2|461=F|541=20260827|18211=M|10=180|"); setFileName(null); setError(null); }}>Sample Group</Btn>
-          <Btn t={t} onClick={() => { setInput(["8=FIX.4.4|9=61|35=A|49=EXEC|56=BANZAI|34=1|52=20260613-23:24:06|10=097|","8=FIX.4.4|9=116|35=D|49=BANZAI|56=EXEC|34=2|52=20260613-23:24:42|11=ORD1001|55=MSFT|54=1|38=10000|40=2|44=12.3|10=199|","8=FIX.4.4|9=123|35=8|49=EXEC|56=BANZAI|34=2|52=20260613-23:24:42|37=EXECORD1|11=ORD1001|17=EXEC1|150=0|39=0|55=MSFT|10=233|"].join("\n")); setFileName(null); setError(null); }}>Sample log</Btn>
-          {input && <Btn t={t} onClick={() => { setInput(""); setFileName(null); setError(null); onClearAll(); }}>Clear</Btn>}
+                    >Clear history</div>
+                  </div>
+                )}
+              </div>
+            )}
+            <Btn t={t} onClick={() => fileRef.current && fileRef.current.click()}>📁{!isMobile && " Upload"}</Btn>
+            <input ref={fileRef} type="file" accept=".txt,.log,.fix,.csv" onChange={handleFile} style={{ display: "none" }} />
+            <Btn t={t} onClick={() => { setInput("8=FIX.4.2|9=458|35=W|34=3|49=TT_PRICE|52=20260615-10:25:15.627|56=QALGOMARKET|15=USD|48=14347306835933645772|55=GC|100=XCEC|107=Gold 100 oz|167=FUT|200=202608|205=27|207=CME|262=218888029250001|268=10|269=0|270=43593|271=3|290=1|269=1|270=43598|271=1|290=1|269=Y|270=43591|271=1|290=1|269=Z|270=43603|271=1|290=1|269=B|271=58663|269=x|270=43597|271=1|269=6|270=42388|272=20260612|273=00:00:00|269=4|270=42894|269=7|270=43661|269=8|270=42834|460=2|461=F|541=20260827|18211=M|10=180|"); setFileName(null); setError(null); }}>Group</Btn>
+            <Btn t={t} onClick={() => { setInput(["8=FIX.4.4|9=61|35=A|49=EXEC|56=BANZAI|34=1|52=20260613-23:24:06|10=097|","8=FIX.4.4|9=116|35=D|49=BANZAI|56=EXEC|34=2|52=20260613-23:24:42|11=ORD1001|55=MSFT|54=1|38=10000|40=2|44=12.3|10=199|","8=FIX.4.4|9=123|35=8|49=EXEC|56=BANZAI|34=2|52=20260613-23:24:42|37=EXECORD1|11=ORD1001|17=EXEC1|150=0|39=0|55=MSFT|10=233|"].join("\n")); setFileName(null); setError(null); }}>Sample</Btn>
+            {input && <Btn t={t} onClick={() => { setInput(""); setFileName(null); setError(null); onClearAll(); }}>Clear</Btn>}
+          </div>
         </div>
       </div>
 
-      <div style={{ padding: "14px 18px" }}>
+      <div style={{ padding: isMobile ? "10px 12px" : "14px 18px" }}>
         {fileName && <div style={{ fontSize: "11px", color: t.textMuted, marginBottom: "8px" }}>📁 {fileName}</div>}
-        <textarea value={input} onChange={e => { setInput(e.target.value); setFileName(null); }} rows={5} placeholder="8=FIX.4.4|9=...|35=D|...  — or paste raw production messages containing binary SOH lines" style={{ width: "100%", boxSizing: "border-box", fontFamily: "monospace", fontSize: "12px", padding: "10px 12px", border: "1px solid " + t.border, borderRadius: "8px", background: t.inputBg, color: t.text, resize: "vertical" }} onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") handleSubmit(); }} />
-        <div style={{ display: "flex", gap: "10px", alignItems: "center", marginTop: "10px" }}>
+        <textarea
+          value={input}
+          onChange={e => { setInput(e.target.value); setFileName(null); }}
+          rows={isMobile ? 4 : 5}
+          placeholder={isMobile ? "Paste FIX message or log…" : "8=FIX.4.4|9=...|35=D|...  — or paste raw production messages containing binary SOH lines"}
+          style={{ width: "100%", boxSizing: "border-box", fontFamily: "monospace", fontSize: "13px", padding: "10px 12px", border: "1px solid " + t.border, borderRadius: "8px", background: t.inputBg, color: t.text, resize: "vertical" }}
+          onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") handleSubmit(); }}
+        />
+        <div style={{ display: "flex", gap: "10px", alignItems: "center", marginTop: "10px", flexWrap: "wrap" }}>
           <PrimaryBtn onClick={handleSubmit} loading={loading} disabled={!input.trim()} t={t}>Parse Data</PrimaryBtn>
-          <span style={{ fontSize: "11px", color: t.textMuted }}>🔒 Privacy First: Messages transit encrypted and are never stored or logged on disk.</span>
+          {!isMobile && <span style={{ fontSize: "11px", color: t.textMuted }}>🔒 Privacy First: Messages transit encrypted and are never stored or logged on disk.</span>}
+          {isMobile && <span style={{ fontSize: "10px", color: t.textFaint }}>🔒 Encrypted · Never stored</span>}
         </div>
         {error && <div style={{ marginTop: "10px", padding: "10px 12px", borderRadius: "8px", background: t.redBg, border: "1px solid " + t.red, color: t.red, fontSize: "12px" }}>{error}</div>}
       </div>
@@ -1654,6 +1674,17 @@ function decodeShare(b64) {
   try {
     return decodeURIComponent(Array.from(atob(b64), c => "%" + c.charCodeAt(0).toString(16).padStart(2, "0")).join(""));
   } catch { return null; }
+}
+
+// ─── Mobile breakpoint hook ───────────────────────────────────────────────────
+function useIsMobile() {
+  const [mobile, setMobile] = useState(() => window.innerWidth < 768);
+  useEffect(() => {
+    const fn = () => setMobile(window.innerWidth < 768);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
+  return mobile;
 }
 
 export default function App() {
@@ -1744,6 +1775,8 @@ export default function App() {
     setTextareaInput("");
   };
 
+  const isMobile = useIsMobile();
+
   const hasResult = singleResult || logMessages;
 
   return (
@@ -1753,6 +1786,14 @@ export default function App() {
         html, body, #root { height: 100%; width: 100%; }
         body { background: ${t.page}; display: block !important; }
         #root { max-width: none !important; margin: 0 !important; padding: 0 !important; text-align: left !important; }
+        @media (max-width: 767px) {
+          .hide-mobile { display: none !important; }
+          .mobile-full { width: 100% !important; min-width: 0 !important; flex: 1 1 auto !important; }
+          .mobile-stack { flex-direction: column !important; }
+          .mobile-pad { padding: 12px !important; }
+          .mobile-font-sm { font-size: 10px !important; }
+          input, textarea { font-size: 16px !important; }
+        }
       `}</style>
 
       <div style={{ minHeight: "100vh", background: t.page, color: t.text, fontFamily: "system-ui, sans-serif", display: "flex", flexDirection: "column", width: "100%" }}>
@@ -1763,11 +1804,13 @@ export default function App() {
           background: t.header,
           borderBottom: "1px solid " + t.border,
           display: "flex", alignItems: "center",
-          padding: "0 24px", height: "54px", gap: "16px", width: "100%",
+          padding: isMobile ? "0 12px" : "0 24px",
+          height: isMobile ? "48px" : "54px",
+          gap: isMobile ? "8px" : "16px", width: "100%",
           boxShadow: "0 1px 0 " + t.border + ", 0 2px 8px rgba(0,0,0,0.08)",
         }}>
           {/* Logo */}
-          <div onClick={handleHomeReset} style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", userSelect: "none" }} title="Home">
+          <div onClick={handleHomeReset} style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", userSelect: "none", flexShrink: 0 }} title="Home">
             <div style={{
               width: "30px", height: "30px", borderRadius: "8px", flexShrink: 0,
               background: "linear-gradient(135deg, " + t.accent + ", " + t.purple + ")",
@@ -1775,20 +1818,22 @@ export default function App() {
               fontSize: "14px", fontWeight: 800, color: "#fff",
               boxShadow: "0 2px 8px " + t.accent + "44",
             }}>F</div>
-            <div>
-              <div style={{ fontSize: "14px", fontWeight: 700, color: t.text, lineHeight: 1.1, letterSpacing: "-0.2px" }}>
-                <span style={{ color: t.accent }}>FIX</span> Parser
+            {!isMobile && (
+              <div>
+                <div style={{ fontSize: "14px", fontWeight: 700, color: t.text, lineHeight: 1.1, letterSpacing: "-0.2px" }}>
+                  <span style={{ color: t.accent }}>FIX</span> Parser
+                </div>
+                <div style={{ fontSize: "9px", color: t.textFaint, letterSpacing: "0.8px", fontWeight: 600 }}>PROTOCOL ANALYSER</div>
               </div>
-              <div style={{ fontSize: "9px", color: t.textFaint, letterSpacing: "0.8px", fontWeight: 600 }}>PROTOCOL ANALYSER</div>
-            </div>
+            )}
           </div>
 
-          {/* Slim separator */}
-          <div style={{ width: "1px", height: "28px", background: t.border }} />
+          {!isMobile && <div style={{ width: "1px", height: "28px", background: t.border }} />}
 
           <div style={{ flex: 1 }} />
 
-          <HeaderTagSearch t={t} onResult={f => setTagPanel(f)} />
+          {/* Tag search — shorter on mobile */}
+          <HeaderTagSearch t={t} onResult={f => setTagPanel(f)} isMobile={isMobile} />
 
           {/* Share button */}
           {textareaInput.trim() && (
@@ -1800,22 +1845,20 @@ export default function App() {
                 navigator.clipboard.writeText(url).then(() => { setShareToast(true); setTimeout(() => setShareToast(false), 2500); });
               }}
               title="Copy shareable link"
-              style={{ height: "32px", padding: "0 12px", borderRadius: "6px", fontSize: "12px", border: "1px solid " + t.border, background: "transparent", color: t.textMuted, cursor: "pointer", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: "5px", transition: "border-color 0.15s, color 0.15s" }}
+              style={{ height: "32px", padding: isMobile ? "0 8px" : "0 12px", borderRadius: "6px", fontSize: "12px", border: "1px solid " + t.border, background: "transparent", color: t.textMuted, cursor: "pointer", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: "4px", transition: "border-color 0.15s, color 0.15s", flexShrink: 0 }}
               onMouseEnter={e => { e.currentTarget.style.borderColor = t.accent; e.currentTarget.style.color = t.accent; }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = t.border; e.currentTarget.style.color = t.textMuted; }}
-            >🔗 Share</button>
+            >{isMobile ? "🔗" : "🔗 Share"}</button>
           )}
 
           {/* Theme toggle */}
           <button
             onClick={toggleTheme}
             title="Toggle theme"
-            style={{ height: "32px", padding: "0 12px", borderRadius: "6px", fontSize: "12px", border: "1px solid " + t.border, background: "transparent", color: t.textMuted, cursor: "pointer", transition: "border-color 0.15s, color 0.15s" }}
+            style={{ height: "32px", padding: isMobile ? "0 8px" : "0 12px", borderRadius: "6px", fontSize: "12px", border: "1px solid " + t.border, background: "transparent", color: t.textMuted, cursor: "pointer", flexShrink: 0, transition: "border-color 0.15s, color 0.15s" }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = t.textMuted; e.currentTarget.style.color = t.text; }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = t.border; e.currentTarget.style.color = t.textMuted; }}
-          >
-            {themeName === "dark" ? "☀ Light" : "🌙 Dark"}
-          </button>
+          >{themeName === "dark" ? "☀" : "🌙"}{!isMobile && (themeName === "dark" ? " Light" : " Dark")}</button>
         </header>
 
         {/* Share toast */}
@@ -1835,20 +1878,19 @@ export default function App() {
           </div>
         )}
 
-        <main style={{ flex: 1, padding: "24px", width: "100%" }}>
-          <UnifiedInput t={t} onSingleResult={handleSingleResult} onLogResult={handleLogResult} onClearAll={handleHomeReset} input={textareaInput} setInput={setTextareaInput} />
-
+        <main style={{ flex: 1, padding: isMobile ? "12px" : "24px", width: "100%" }}>
+          <UnifiedInput t={t} onSingleResult={handleSingleResult} onLogResult={handleLogResult} onClearAll={handleHomeReset} input={textareaInput} setInput={setTextareaInput} isMobile={isMobile} />
           {singleResult && (
-            <SingleResult result={singleResult} originalInput={singleInput} t={t} onTagClick={f => setTagPanel(f)} filterRef={filterRef} tableFilter={tableFilter} setTableFilter={setTableFilter} />
+            <SingleResult result={singleResult} originalInput={singleInput} t={t} onTagClick={f => setTagPanel(f)} filterRef={filterRef} tableFilter={tableFilter} setTableFilter={setTableFilter} isMobile={isMobile} />
           )}
           {logMessages && (
-            <SessionResult messages={logMessages} t={t} onTagClick={f => setTagPanel(f)} filterRef={filterRef} tableFilter={tableFilter} setTableFilter={setTableFilter} />
+            <SessionResult messages={logMessages} t={t} onTagClick={f => setTagPanel(f)} filterRef={filterRef} tableFilter={tableFilter} setTableFilter={setTableFilter} isMobile={isMobile} />
           )}
           {!hasResult && <PopularTagsGrid t={t} onTagClick={f => setTagPanel(f)} />}
         </main>
       </div>
 
-      {tagPanel && <TagPanel field={tagPanel} onClose={() => setTagPanel(null)} t={t} />}
+      {tagPanel && <TagPanel field={tagPanel} onClose={() => setTagPanel(null)} t={t} isMobile={isMobile} />}
     </>
   );
 }
