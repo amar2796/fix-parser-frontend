@@ -7,61 +7,61 @@ const API_LOG = "https://fix-parser-backend.onrender.com/api/parse-log";
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 const T = {
   dark: {
-    page:      "#0d1117",
-    header:    "#161b22",
-    panel:     "#21262d",
-    panelAlt:  "#161b22",
-    border:    "#30363d",
-    borderSub: "#21262d",
-    text:      "#e6edf3",
-    textMuted: "#8b949e",
-    textFaint: "#484f58",
-    accent:    "#58a6ff",
-    accentBg:  "rgba(88,166,255,0.12)",
-    green:     "#3fb950",
-    greenBg:   "rgba(63,185,80,0.12)",
-    red:       "#f85149",
-    redBg:     "rgba(248,81,73,0.12)",
-    yellow:    "#e3b341",
-    yellowBg:  "rgba(227,179,65,0.12)",
-    purple:    "#bc8cff",
-    purpleBg:  "rgba(188,140,255,0.12)",
-    inputBg:   "#0d1117",
-    shadow:    "0 0 0 1px #30363d",
-    shadowMd:  "0 8px 24px rgba(0,0,0,0.5)",
+    page:      "#0f172a",
+    header:    "#1e293b",
+    panel:     "#1e293b",
+    panelAlt:  "#0f172a",
+    border:    "#334155",
+    borderSub: "#1e293b",
+    text:      "#e2e8f0",
+    textMuted: "#94a3b8",
+    textFaint: "#475569",
+    accent:    "#60a5fa",
+    accentBg:  "rgba(96,165,250,0.12)",
+    green:     "#34d399",
+    greenBg:   "rgba(52,211,153,0.12)",
+    red:       "#f87171",
+    redBg:     "rgba(248,113,113,0.12)",
+    yellow:    "#fbbf24",
+    yellowBg:  "rgba(251,191,36,0.12)",
+    purple:    "#a78bfa",
+    purpleBg:  "rgba(167,139,250,0.12)",
+    inputBg:   "#0f172a",
+    shadow:    "0 0 0 1px #334155",
+    shadowMd:  "0 8px 24px rgba(0,0,0,0.6)",
     sections: {
-      header:  { bg: "rgba(88,166,255,0.08)",  border: "#58a6ff", label: "HEADER",  text: "#79c0ff" },
-      body:    { bg: "rgba(63,185,80,0.08)",   border: "#3fb950", label: "BODY",    text: "#56d364" },
-      trailer: { bg: "rgba(227,179,65,0.08)",  border: "#e3b341", label: "TRAILER", text: "#d29922" },
+      header:  { bg: "rgba(96,165,250,0.08)",  border: "#3b82f6", label: "HEADER",  text: "#60a5fa" },
+      body:    { bg: "rgba(52,211,153,0.08)",  border: "#10b981", label: "BODY",    text: "#34d399" },
+      trailer: { bg: "rgba(251,191,36,0.08)",  border: "#f59e0b", label: "TRAILER", text: "#fbbf24" },
     },
   },
   light: {
-    page:      "#f6f8fa",
+    page:      "#f8fafc",
     header:    "#ffffff",
     panel:     "#ffffff",
-    panelAlt:  "#f6f8fa",
-    border:    "#d0d7de",
-    borderSub: "#eaeef2",
-    text:      "#1f2328",
-    textMuted: "#656d76",
-    textFaint: "#bbc0c6",
-    accent:    "#0969da",
-    accentBg:  "rgba(9,105,218,0.1)",
-    green:     "#1a7f37",
-    greenBg:   "rgba(26,127,55,0.1)",
-    red:       "#cf222e",
-    redBg:     "rgba(207,34,46,0.1)",
-    yellow:    "#9a6700",
-    yellowBg:  "rgba(154,103,0,0.1)",
-    purple:    "#6e40c9",
-    purpleBg:  "rgba(110,64,201,0.1)",
+    panelAlt:  "#f1f5f9",
+    border:    "#e2e8f0",
+    borderSub: "#f1f5f9",
+    text:      "#0f172a",
+    textMuted: "#64748b",
+    textFaint: "#cbd5e1",
+    accent:    "#2563eb",
+    accentBg:  "rgba(37,99,235,0.08)",
+    green:     "#059669",
+    greenBg:   "rgba(5,150,105,0.08)",
+    red:       "#dc2626",
+    redBg:     "rgba(220,38,38,0.08)",
+    yellow:    "#d97706",
+    yellowBg:  "rgba(217,119,6,0.08)",
+    purple:    "#7c3aed",
+    purpleBg:  "rgba(124,58,237,0.08)",
     inputBg:   "#ffffff",
-    shadow:    "0 0 0 1px #d0d7de",
-    shadowMd:  "0 8px 24px rgba(0,0,0,0.1)",
+    shadow:    "0 0 0 1px #e2e8f0",
+    shadowMd:  "0 8px 24px rgba(0,0,0,0.08)",
     sections: {
-      header:  { bg: "rgba(9,105,218,0.06)",  border: "#0969da", label: "HEADER",  text: "#0550ae" },
-      body:    { bg: "rgba(26,127,55,0.06)",  border: "#1a7f37", label: "BODY",    text: "#116329" },
-      trailer: { bg: "rgba(154,103,0,0.06)",  border: "#9a6700", label: "TRAILER", text: "#7d4e00" },
+      header:  { bg: "rgba(37,99,235,0.06)",  border: "#2563eb", label: "HEADER",  text: "#1d4ed8" },
+      body:    { bg: "rgba(5,150,105,0.06)",  border: "#059669", label: "BODY",    text: "#047857" },
+      trailer: { bg: "rgba(217,119,6,0.06)",  border: "#d97706", label: "TRAILER", text: "#b45309" },
     },
   },
 };
@@ -376,7 +376,19 @@ function ThemedAnatomyBar({ result, originalInput, stepIdx = null, onClickField 
 }
 
 // ─── Field Table ──────────────────────────────────────────────────────────────
-// ─── FieldTable — accordion section ──────────────────────────────────────────
+// ─── Highlight matching text in a string ─────────────────────────────────────
+function HighlightText({ text, query, t }) {
+  if (!query || !text) return <>{text || ""}</>;
+  const idx = String(text).toLowerCase().indexOf(query.toLowerCase());
+  if (idx === -1) return <>{text}</>;
+  return <>
+    {String(text).slice(0, idx)}
+    <mark style={{ background: "#fbbf2466", color: "inherit", borderRadius: "2px", padding: "0 1px" }}>
+      {String(text).slice(idx, idx + query.length)}
+    </mark>
+    {String(text).slice(idx + query.length)}
+  </>;
+}
 function FieldTable({ rows, sectionKey, t, onTagClick, filterText, isOpen, onToggle, sectionRef, isMobile }) {
   const sc = t.sections[sectionKey];
   if (!rows || rows.length === 0) return null;
@@ -401,6 +413,14 @@ function FieldTable({ rows, sectionKey, t, onTagClick, filterText, isOpen, onTog
   });
   const groupKeys = Object.keys(groupsMap);
 
+  const [copiedTag, setCopiedTag] = useState(null);
+  const copyValue = (r) => {
+    navigator.clipboard.writeText(r.raw || "").then(() => {
+      setCopiedTag(r.tag);
+      setTimeout(() => setCopiedTag(null), 1500);
+    });
+  };
+
   const renderRow = (r, key, lastInSection, rowIndex) => (
     <tr
       key={key}
@@ -412,16 +432,27 @@ function FieldTable({ rows, sectionKey, t, onTagClick, filterText, isOpen, onTog
         <span style={{ fontFamily: "ui-monospace,monospace", fontSize: "10px", fontWeight: 700, color: sc.border, background: sc.border + "1a", padding: isMobile ? "1px 5px" : "2px 7px", borderRadius: "4px" }}>{r.tag}</span>
       </td>
       <td style={{ padding: isMobile ? "5px 6px" : "6px 10px", fontSize: isMobile ? "11px" : "12px", color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-        {r.name}
+        <HighlightText text={r.name} query={filterText} t={t} />
         {r.isUnknownTag && <span style={{ fontSize: "9px", fontWeight: 700, color: t.red, background: t.redBg, padding: "1px 5px", borderRadius: "3px", marginLeft: "4px" }}>?</span>}
       </td>
       <td style={{ padding: isMobile ? "5px 6px" : "6px 10px", fontFamily: "ui-monospace,monospace", fontSize: "11px", color: t.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.raw}</td>
-      {!isMobile && <td style={{ padding: "6px 10px", fontSize: "12px", color: r.meaning && r.meaning !== r.raw ? t.text : t.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: r.meaning && r.meaning !== r.raw ? 500 : 400 }}>{r.meaning || "—"}</td>}
-      <td style={{ padding: isMobile ? "4px 3px" : "6px 6px", textAlign: "center" }}>
+      {!isMobile && <td style={{ padding: "6px 10px", fontSize: "12px", color: r.meaning && r.meaning !== r.raw ? t.text : t.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: r.meaning && r.meaning !== r.raw ? 500 : 400 }}>
+        <HighlightText text={r.meaning || "—"} query={filterText} t={t} />
+      </td>}
+      <td style={{ padding: isMobile ? "4px 3px" : "6px 6px", textAlign: "center", whiteSpace: "nowrap" }}>
+        {/* Copy raw value */}
+        <button
+          onClick={() => copyValue(r)}
+          title="Copy raw value"
+          style={{ background: "none", border: "1px solid transparent", cursor: "pointer", fontSize: "10px", color: copiedTag === r.tag ? t.green : t.textFaint, padding: "2px 4px", borderRadius: "4px", transition: "all 0.1s", marginRight: "2px" }}
+          onMouseEnter={e => { e.currentTarget.style.color = t.accent; e.currentTarget.style.borderColor = t.accent; e.currentTarget.style.background = t.accentBg; }}
+          onMouseLeave={e => { e.currentTarget.style.color = copiedTag === r.tag ? t.green : t.textFaint; e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.background = "none"; }}
+        >{copiedTag === r.tag ? "✓" : "⎘"}</button>
+        {/* Open tag reference */}
         <button
           onClick={() => onTagClick && onTagClick(r)}
           title={isMobile ? r.meaning || r.name : "Open tag reference"}
-          style={{ background: "none", border: "1px solid transparent", cursor: "pointer", fontSize: "11px", color: t.textFaint, padding: isMobile ? "2px 4px" : "2px 6px", borderRadius: "4px", transition: "all 0.1s" }}
+          style={{ background: "none", border: "1px solid transparent", cursor: "pointer", fontSize: "11px", color: t.textFaint, padding: "2px 4px", borderRadius: "4px", transition: "all 0.1s" }}
           onMouseEnter={e => { e.currentTarget.style.color = t.accent; e.currentTarget.style.borderColor = t.accent; e.currentTarget.style.background = t.accentBg; }}
           onMouseLeave={e => { e.currentTarget.style.color = t.textFaint; e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.background = "none"; }}
         >↗</button>
@@ -439,25 +470,30 @@ function FieldTable({ rows, sectionKey, t, onTagClick, filterText, isOpen, onTog
 
   return (
     <div ref={sectionRef} style={{ marginBottom: "10px", borderRadius: "8px", border: "1.5px solid " + (isOpen ? sc.border + "55" : t.border), overflow: "hidden", transition: "border-color 0.15s" }}>
-      {/* ── Accordion header ── */}
+      {/* ── Accordion header — minimal style ── */}
       <div
         onClick={onToggle}
         style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "9px 14px",
-          background: isOpen ? sc.border + "18" : t.panelAlt,
-          borderLeft: "4px solid " + sc.border,
+          padding: "8px 12px",
+          background: "transparent",
+          borderLeft: "3px solid " + (isOpen ? sc.border : t.borderSub),
           cursor: "pointer", userSelect: "none",
-          transition: "background 0.15s",
+          transition: "border-color 0.15s, background 0.15s",
         }}
-        onMouseEnter={e => { e.currentTarget.style.background = sc.border + "25"; }}
-        onMouseLeave={e => { e.currentTarget.style.background = isOpen ? sc.border + "18" : t.panelAlt; }}
+        onMouseEnter={e => { e.currentTarget.style.background = sc.border + "0a"; }}
+        onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <span style={{ fontSize: "11px", fontWeight: 700, color: sc.border, letterSpacing: "0.6px" }}>{sc.label}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <div style={{ width: "3px", height: "16px", background: sc.border, borderRadius: "2px", flexShrink: 0 }} />
+          <span style={{ fontSize: "11px", fontWeight: 600, color: isOpen ? sc.border : t.textMuted, letterSpacing: "0.3px", transition: "color 0.15s" }}>
+            {sc.label.charAt(0) + sc.label.slice(1).toLowerCase()}
+          </span>
           <span style={{
-            fontSize: "10px", fontWeight: 600, padding: "1px 8px", borderRadius: "20px",
-            background: sc.border + "22", color: sc.border,
+            fontSize: "10px", fontWeight: 600, padding: "1px 7px", borderRadius: "20px",
+            background: isOpen ? sc.border + "18" : t.panelAlt,
+            color: isOpen ? sc.border : t.textFaint,
+            transition: "all 0.15s",
           }}>
             {filteredRows.length} field{filteredRows.length !== 1 ? "s" : ""}
           </span>
@@ -466,7 +502,7 @@ function FieldTable({ rows, sectionKey, t, onTagClick, filterText, isOpen, onTog
           )}
         </div>
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ transition: "transform 0.2s", transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", flexShrink: 0 }}>
-          <path d="M3 5l4 4 4-4" stroke={sc.border} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M3 5l4 4 4-4" stroke={isOpen ? sc.border : t.textFaint} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
       </div>
 
@@ -1317,8 +1353,24 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
     borderBottom: "1px solid " + t.borderSub,
   };
 
-  // CSV export
-  const exportCSV = () => {
+  // Type summary pills
+  const typeSummary = useMemo(() => {
+    const counts = {};
+    messages.forEach(m => { const n = m.msgTypeName || m.msgType || "?"; counts[n] = (counts[n] || 0) + 1; });
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  }, [messages]);
+
+  // JSON export of selected message
+  const exportJSON = () => {
+    if (!sel) return;
+    const fields = [...sel.components.header, ...sel.components.body, ...sel.components.trailer];
+    const obj = {};
+    fields.forEach(f => { obj[f.name || f.tag] = f.raw; });
+    const blob = new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = `fix-msg-${selectedIdx + 1}.json`; a.click();
+    URL.revokeObjectURL(url);
+  };
     const headers = ["#", "Time", "Type", "Direction", "Summary", "Δt"];
     const rows = messages.map((m, i) => {
       const dt = i > 0 ? calculateTimeDelta(m.sendingTime, messages[i - 1].sendingTime) : "";
@@ -1338,22 +1390,42 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
       {/* ── Order lifecycle view ── */}
       <OrderLifecycleView messages={messages} t={t} onSelectMessage={(idx) => { setSelectedIdx(idx); setDetailMode("table"); setTableFilter(""); }} />
 
+      {/* ── Type summary pills — clickable to filter ── */}
+      <div style={{ display: "flex", gap: "5px", flexWrap: "wrap", marginBottom: "10px", alignItems: "center" }}>
+        <span style={{ fontSize: "10px", color: t.textFaint, fontWeight: 600, letterSpacing: "0.4px", flexShrink: 0 }}>TYPES</span>
+        {typeSummary.map(([name, count]) => {
+          const b = badgeFor(name, t);
+          const isActive = logFilter === name;
+          return (
+            <span key={name} onClick={() => setLogFilter(isActive ? "" : name)}
+              style={{ fontSize: "10px", fontWeight: 600, padding: "2px 9px", borderRadius: "20px", background: isActive ? b.border : b.bg, color: isActive ? "#fff" : b.fg, border: "0.5px solid " + b.border, cursor: "pointer", transition: "all 0.15s", whiteSpace: "nowrap" }}
+              title={"Filter by " + name}
+            >
+              {name} {count}
+            </span>
+          );
+        })}
+        {logFilter && !typeSummary.find(([n]) => n === logFilter) && (
+          <button onClick={() => setLogFilter("")} style={{ fontSize: "10px", color: t.red, background: "none", border: "none", cursor: "pointer" }}>✕ clear</button>
+        )}
+      </div>
+
       <div style={{ display: "flex", gap: "16px", alignItems: "flex-start", flexDirection: isMobile ? "column" : "row" }}>
       {/* ── Left: Log table ── */}
-      <div style={{ flex: isMobile ? "none" : "0 0 560px", width: isMobile ? "100%" : undefined, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px", gap: "8px", flexWrap: "wrap" }}>
+      <div style={{ flex: isMobile ? "none" : "0 0 580px", width: isMobile ? "100%" : undefined, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px", gap: "6px", flexWrap: "wrap" }}>
           <span style={{ fontSize: "11px", fontWeight: 600, color: t.textMuted, whiteSpace: "nowrap" }}>
-            TIMELINE · {messages.length} MESSAGES
-            {filterLower && filteredMessages.length !== messages.length ? ` · ${filteredMessages.length} shown` : ""}
+            TIMELINE · {messages.length}{filterLower && filteredMessages.length !== messages.length ? ` · ${filteredMessages.length}` : ""} MSG
           </span>
-          <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
-            <button onClick={exportCSV} title="Export as CSV" style={{ height: "26px", padding: "0 10px", borderRadius: "6px", fontSize: "11px", border: "1px solid " + t.border, background: t.panelAlt, color: t.textMuted, cursor: "pointer", whiteSpace: "nowrap" }}>⬇ CSV</button>
-            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-              <span style={{ fontSize: "10px", color: t.textFaint, whiteSpace: "nowrap" }}>🔴 &gt;</span>
-              <input type="number" value={spikeMs} onChange={e => setSpikeMs(Number(e.target.value))} min={1} style={{ width: "52px", height: "24px", padding: "0 4px", fontSize: "11px", border: "1px solid " + t.border, borderRadius: "4px", background: t.inputBg, color: t.text, textAlign: "right" }} />
+          <div style={{ display: "flex", gap: "5px", alignItems: "center", flexWrap: "nowrap" }}>
+            <button onClick={exportCSV} title="Export as CSV" style={{ height: "26px", padding: "0 8px", borderRadius: "6px", fontSize: "11px", border: "1px solid " + t.border, background: t.panelAlt, color: t.textMuted, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>⬇{!isMobile && " CSV"}</button>
+            <button onClick={exportJSON} title="Export selected as JSON" disabled={!sel} style={{ height: "26px", padding: "0 8px", borderRadius: "6px", fontSize: "11px", border: "1px solid " + t.border, background: t.panelAlt, color: sel ? t.textMuted : t.textFaint, cursor: sel ? "pointer" : "default", whiteSpace: "nowrap", flexShrink: 0 }}>⬇{!isMobile && " JSON"}</button>
+            <div style={{ display: "flex", alignItems: "center", gap: "3px", flexShrink: 0 }}>
+              <span style={{ fontSize: "10px", color: t.textFaint }}>🔴</span>
+              <input type="number" value={spikeMs} onChange={e => setSpikeMs(Number(e.target.value))} min={1} style={{ width: isMobile ? "44px" : "52px", height: "24px", padding: "0 4px", fontSize: "16px", border: "1px solid " + t.border, borderRadius: "4px", background: t.inputBg, color: t.text, textAlign: "right" }} />
               <span style={{ fontSize: "10px", color: t.textFaint }}>ms</span>
             </div>
-            <input value={logFilter} onChange={e => setLogFilter(e.target.value)} placeholder="Filter…" style={{ height: "26px", padding: "0 8px", borderRadius: "6px", fontSize: "11px", border: "1px solid " + t.border, background: t.inputBg, color: t.text, outline: "none", width: "140px" }} />
+            <input value={logFilter} onChange={e => setLogFilter(e.target.value)} placeholder="Filter…" style={{ height: "26px", padding: "0 8px", borderRadius: "6px", fontSize: "14px", border: "1px solid " + t.border, background: t.inputBg, color: t.text, outline: "none", minWidth: 0, flex: 1, maxWidth: isMobile ? "100px" : "140px" }} />
           </div>
         </div>
 
@@ -1362,16 +1434,17 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
             <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
               <colgroup>
                 <col style={{ width: "28px" }} />
-                <col style={{ width: isMobile ? "70px" : "90px" }} />
-                <col style={{ width: isMobile ? "120px" : "160px" }} />
+                <col style={{ width: isMobile ? "70px" : "86px" }} />
+                {!isMobile && <col style={{ width: "96px" }} />}
+                <col style={{ width: isMobile ? "120px" : "148px" }} />
                 {!isMobile && <col />}
-                <col style={{ width: isMobile ? "54px" : "54px" }} />
+                <col style={{ width: isMobile ? "50px" : "50px" }} />
               </colgroup>
               <thead>
                 <tr style={{ background: t.panelAlt, position: "sticky", top: 0, zIndex: 1, boxShadow: "0 1px 0 " + t.border }}>
                   {(isMobile
                     ? [["#","right"],["Time","left"],["Type","left"],["Δt","right"]]
-                    : [["#","right"],["Time","left"],["Type","left"],["Summary","left"],["Δt","right"]]
+                    : [["#","right"],["Time","left"],["Dir","left"],["Type","left"],["Summary","left"],["Δt","right"]]
                   ).map(([label, align]) => (
                     <th key={label} style={{ padding: "6px 8px", fontSize: "10px", fontWeight: 700, color: t.textFaint, textAlign: align, borderBottom: "2px solid " + t.border, letterSpacing: "0.5px" }}>
                       {label}
@@ -1395,14 +1468,15 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
                       key={m.logIndex ?? i}
                       data-idx={i}
                       onClick={() => { setSelectedIdx(i); setDetailMode("table"); setTableFilter(""); }}
-                      style={{ background: rowBg, borderLeft: "3px solid " + (isSel ? t.accent : isRel ? t.yellow : "transparent"), cursor: "pointer", transition: "background 0.08s" }}
+                      style={{ background: rowBg, borderLeft: isSel ? "4px solid " + t.accent : isRel ? "3px solid " + t.yellow : "3px solid transparent", cursor: "pointer", transition: "background 0.08s" }}
                       onMouseEnter={e => { if (!isSel && !isRel) e.currentTarget.style.background = t.panelAlt; }}
                       onMouseLeave={e => { e.currentTarget.style.background = rowBg; }}
                     >
                       <td style={{ ...cellBase, textAlign: "right", color: t.textFaint, fontFamily: "monospace", paddingRight: "6px" }}>{i + 1}</td>
                       <td style={{ ...cellBase, fontFamily: "monospace", color: t.textMuted, fontSize: "10px", paddingLeft: "8px" }}>{timeStr}</td>
+                      {!isMobile && <td style={{ ...cellBase, fontFamily: "monospace", color: t.textFaint, fontSize: "10px", paddingLeft: "8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.senderCompID}→{m.targetCompID}</td>}
                       <td style={{ ...cellBase, paddingLeft: "8px" }}>
-                        <span style={{ display: "inline-block", fontSize: "10px", fontWeight: 600, padding: "1px 8px", borderRadius: "20px", background: badge.bg, color: badge.fg, border: "0.5px solid " + badge.border, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: isMobile ? "110px" : "152px" }}>
+                        <span style={{ display: "inline-block", fontSize: "10px", fontWeight: 600, padding: "1px 8px", borderRadius: "20px", background: badge.bg, color: badge.fg, border: "0.5px solid " + badge.border, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: isMobile ? "110px" : "144px" }}>
                           {fullName}
                         </span>
                       </td>
@@ -1508,23 +1582,25 @@ function UnifiedInput({ t, onSingleResult, onLogResult, onClearAll, input, setIn
     e.target.value = "";
   };
 
-  const handleSubmit = async () => {
-    if (!input.trim()) return;
+  const handleSubmit = async (overrideInput) => {
+    const raw = overrideInput || input;
+    if (!raw.trim()) return;
     setLoading(true); setError(null);
-    const body = normalizeForSend(input);
+    const body = normalizeForSend(raw);
+    const rawIsLog = countFixStarts(raw) > 1;
     try {
-      if (isLog) {
+      if (rawIsLog) {
         const res = await fetch(API_LOG, { method: "POST", headers: { "Content-Type": "text/plain" }, body });
         if (!res.ok) { const d = await res.json().catch(() => ({})); setError(d.message || `Server error ${res.status}`); return; }
         const d = await res.json();
-        saveHistory(input);
-        onLogResult(d.messages, input);
+        saveHistory(raw);
+        onLogResult(d.messages, raw);
       } else {
         const res = await fetch(API, { method: "POST", headers: { "Content-Type": "text/plain" }, body });
         if (!res.ok) { const d = await res.json().catch(() => ({})); setError(d.message || `Server error ${res.status}`); return; }
         const d = await res.json();
-        saveHistory(input);
-        onSingleResult(d, input);
+        saveHistory(raw);
+        onSingleResult(d, raw);
       }
     } catch {
       setError("Could not reach the backend. If this is the first request in a while, the service may be cold-starting (~30s). Please try again.");
@@ -1581,6 +1657,15 @@ function UnifiedInput({ t, onSingleResult, onLogResult, onClearAll, input, setIn
         <textarea
           value={input}
           onChange={e => { setInput(e.target.value); setFileName(null); }}
+          onPaste={e => {
+            // Auto-parse 400ms after paste if it looks like a complete FIX message
+            setTimeout(() => {
+              const pasted = e.target.value || "";
+              if (pasted.includes("8=FIX") && pasted.includes("10=")) {
+                handleSubmit(pasted);
+              }
+            }, 400);
+          }}
           rows={isMobile ? 4 : 5}
           placeholder={isMobile ? "Paste FIX message or log…" : "8=FIX.4.4|9=...|35=D|...  — or paste raw production messages containing binary SOH lines"}
           style={{ width: "100%", boxSizing: "border-box", fontFamily: "monospace", fontSize: "13px", padding: "10px 12px", border: "1px solid " + t.border, borderRadius: "8px", background: t.inputBg, color: t.text, resize: "vertical" }}
