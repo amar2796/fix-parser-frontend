@@ -1538,7 +1538,8 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
           </div>
         ) : null}
       </div>
-    </div>  {/* end marginTop wrapper */}
+      </div>
+    </div>
   );
 }
 
