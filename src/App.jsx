@@ -1371,6 +1371,9 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
     const a = document.createElement("a"); a.href = url; a.download = `fix-msg-${selectedIdx + 1}.json`; a.click();
     URL.revokeObjectURL(url);
   };
+
+  // CSV export
+  const exportCSV = () => {
     const headers = ["#", "Time", "Type", "Direction", "Summary", "Δt"];
     const rows = messages.map((m, i) => {
       const dt = i > 0 ? calculateTimeDelta(m.sendingTime, messages[i - 1].sendingTime) : "";
@@ -1391,22 +1394,26 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
       <OrderLifecycleView messages={messages} t={t} onSelectMessage={(idx) => { setSelectedIdx(idx); setDetailMode("table"); setTableFilter(""); }} />
 
       {/* ── Type summary pills — clickable to filter ── */}
-      <div style={{ display: "flex", gap: "5px", flexWrap: "wrap", marginBottom: "10px", alignItems: "center" }}>
-        <span style={{ fontSize: "10px", color: t.textFaint, fontWeight: 600, letterSpacing: "0.4px", flexShrink: 0 }}>TYPES</span>
+      <div style={{ display: "flex", gap: isMobile ? "4px" : "5px", flexWrap: "wrap", marginBottom: "10px", alignItems: "center" }}>
+        <span style={{ fontSize: "10px", color: t.textFaint, fontWeight: 600, letterSpacing: "0.4px", flexShrink: 0 }}>TYPE</span>
         {typeSummary.map(([name, count]) => {
           const b = badgeFor(name, t);
           const isActive = logFilter === name;
+          // Abbreviate on mobile
+          const label = isMobile
+            ? (name === "New Order Single" ? "NOS" : name === "Execution Report" ? "ExecRpt" : name === "Order Cancel Request" ? "CxlReq" : name === "Order Cancel/Replace Request" ? "Cxl/Rep" : name === "Heartbeat" ? "HB" : name === "Logon" ? "Logon" : name === "Logout" ? "Logout" : name === "Reject" ? "Rej" : name.slice(0, 6))
+            : name;
           return (
             <span key={name} onClick={() => setLogFilter(isActive ? "" : name)}
-              style={{ fontSize: "10px", fontWeight: 600, padding: "2px 9px", borderRadius: "20px", background: isActive ? b.border : b.bg, color: isActive ? "#fff" : b.fg, border: "0.5px solid " + b.border, cursor: "pointer", transition: "all 0.15s", whiteSpace: "nowrap" }}
-              title={"Filter by " + name}
+              style={{ fontSize: isMobile ? "10px" : "10px", fontWeight: 600, padding: isMobile ? "2px 7px" : "2px 9px", borderRadius: "20px", background: isActive ? b.border : b.bg, color: isActive ? "#fff" : b.fg, border: "0.5px solid " + b.border, cursor: "pointer", transition: "all 0.15s", whiteSpace: "nowrap", lineHeight: "16px" }}
+              title={name + " (" + count + ")"}
             >
-              {name} {count}
+              {label} {count}
             </span>
           );
         })}
-        {logFilter && !typeSummary.find(([n]) => n === logFilter) && (
-          <button onClick={() => setLogFilter("")} style={{ fontSize: "10px", color: t.red, background: "none", border: "none", cursor: "pointer" }}>✕ clear</button>
+        {logFilter && (
+          <button onClick={() => setLogFilter("")} style={{ fontSize: "10px", color: t.red, background: "none", border: "none", cursor: "pointer", flexShrink: 0 }}>✕</button>
         )}
       </div>
 
@@ -1531,8 +1538,7 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
           </div>
         ) : null}
       </div>
-      </div>  {/* end inner flex row */}
-    </div>
+    </div>  {/* end marginTop wrapper */}
   );
 }
 
