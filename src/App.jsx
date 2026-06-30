@@ -68,7 +68,7 @@ const T = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function countFixStarts(text) {
-  return (text.match(/8=FIX/g) || []).length;
+  return ((text || "").match(/8=FIX/g) || []).length;
 }
 
 function badgeFor(name, t) {
@@ -84,8 +84,10 @@ function badgeFor(name, t) {
 }
 
 function sectionOf(field, result) {
-  if (result.components.header.some(f => f.stepIndex === field.stepIndex)) return "header";
-  if (result.components.trailer.some(f => f.stepIndex === field.stepIndex)) return "trailer";
+  const header = (result.components && result.components.header) || [];
+  const trailer = (result.components && result.components.trailer) || [];
+  if (header.some(f => f.stepIndex === field.stepIndex)) return "header";
+  if (trailer.some(f => f.stepIndex === field.stepIndex)) return "trailer";
   return "body";
 }
 
@@ -169,7 +171,11 @@ function ExecutionSummaryVisualizer({ result, t }) {
   let statusText = result.msgTypeName;
   let color = t.accent;
 
-  const fields = [...result.components.header, ...result.components.body, ...result.components.trailer];
+  const fields = [
+    ...(result.components && result.components.header ? result.components.header : []),
+    ...(result.components && result.components.body ? result.components.body : []),
+    ...(result.components && result.components.trailer ? result.components.trailer : []),
+  ];
   const ordStatusField = fields.find(f => f.tag === 39);
   const statusVal = ordStatusField ? ordStatusField.raw : "";
 
@@ -305,11 +311,12 @@ function ThemedAnatomyBar({ result, originalInput, stepIdx = null, onClickField 
   const [hoveredField, setHoveredField] = useState(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
 
+  const safeInput = originalInput || "";
   let delim = "|";
-  if (originalInput.includes("\x01")) delim = "\x01";
-  else if (originalInput.includes(";")) delim = ";";
-  else if (originalInput.includes("^") && !originalInput.includes("|")) delim = "^";
-  const parts = originalInput.split(delim).filter(p => p.length > 0);
+  if (safeInput.includes("\x01")) delim = "\x01";
+  else if (safeInput.includes(";")) delim = ";";
+  else if (safeInput.includes("^") && !safeInput.includes("|")) delim = "^";
+  const parts = safeInput.split(delim).filter(p => p.length > 0);
   const seq = result.sequence || [];
 
   const handleMouseMove = (e) => {
@@ -378,15 +385,17 @@ function ThemedAnatomyBar({ result, originalInput, stepIdx = null, onClickField 
 // ─── Field Table ──────────────────────────────────────────────────────────────
 // ─── Highlight matching text in a string ─────────────────────────────────────
 function HighlightText({ text, query, t }) {
-  if (!query || !text) return <>{text || ""}</>;
-  const idx = String(text).toLowerCase().indexOf(query.toLowerCase());
-  if (idx === -1) return <>{text}</>;
+  const safeText = text == null ? "" : String(text);
+  if (!query || !safeText) return <>{safeText}</>;
+  const safeQuery = String(query);
+  const idx = safeText.toLowerCase().indexOf(safeQuery.toLowerCase());
+  if (idx === -1) return <>{safeText}</>;
   return <>
-    {String(text).slice(0, idx)}
+    {safeText.slice(0, idx)}
     <mark style={{ background: "#fbbf2466", color: "inherit", borderRadius: "2px", padding: "0 1px" }}>
-      {String(text).slice(idx, idx + query.length)}
+      {safeText.slice(idx, idx + safeQuery.length)}
     </mark>
-    {String(text).slice(idx + query.length)}
+    {safeText.slice(idx + safeQuery.length)}
   </>;
 }
 function FieldTable({ rows, sectionKey, t, onTagClick, filterText, isOpen, onToggle, sectionRef, isMobile }) {
@@ -395,8 +404,11 @@ function FieldTable({ rows, sectionKey, t, onTagClick, filterText, isOpen, onTog
 
   const filteredRows = rows.filter(r => {
     if (!filterText) return true;
-    const txt = filterText.toLowerCase();
-    return String(r.tag).includes(txt) || r.name.toLowerCase().includes(txt) || r.meaning.toLowerCase().includes(txt) || r.raw.toLowerCase().includes(txt);
+    const txt = (filterText || "").toLowerCase();
+    return String(r.tag).includes(txt)
+      || (r.name || "").toLowerCase().includes(txt)
+      || (r.meaning || "").toLowerCase().includes(txt)
+      || (r.raw || "").toLowerCase().includes(txt);
   });
 
   if (filteredRows.length === 0) return null;
@@ -559,7 +571,7 @@ function FieldSections({ result, t, onTagClick, filterText, isMobile }) {
     }
   };
 
-  const hasRows = (key) => result.components[key] && result.components[key].length > 0;
+  const hasRows = (key) => result.components && result.components[key] && result.components[key].length > 0;
   const anyOpen = SECTIONS.some(k => openMap[k]);
 
   return (
@@ -1283,7 +1295,9 @@ function abbrevMsgType(msgTypeName, msgType) {
     "Trade Capture Report":              "TrdCapt",
     "Order Mass Status Request":         "MassStat",
   };
-  return map[msgTypeName] || msgTypeName || msgType || "?";
+  const name = msgTypeName || "";
+  const type = msgType || "";
+  return map[name] || name || type || "?";
 }
 
 // ─── Session / Log Result ────────────────────────────────────────────────────
@@ -1301,7 +1315,7 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
   // Pre-build O(1) index lookup — avoids indexOf per row during render
   const originalIndexMap = useMemo(() => new Map(messages.map((m, i) => [m, i])), [messages]);
 
-  const filterLower = logFilter.trim().toLowerCase();
+  const filterLower = (logFilter || "").trim().toLowerCase();
   const filteredMessages = (filterLower
     ? messages.filter(m =>
         abbrevMsgType(m.msgTypeName, m.msgType).toLowerCase().includes(filterLower) ||
@@ -1362,8 +1376,12 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
 
   // JSON export of selected message
   const exportJSON = () => {
-    if (!sel) return;
-    const fields = [...sel.components.header, ...sel.components.body, ...sel.components.trailer];
+    if (!sel || !sel.components) return;
+    const fields = [
+      ...(sel.components.header || []),
+      ...(sel.components.body || []),
+      ...(sel.components.trailer || []),
+    ];
     const obj = {};
     fields.forEach(f => { obj[f.name || f.tag] = f.raw; });
     const blob = new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" });
@@ -1404,7 +1422,7 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
             ? (name === "New Order Single" ? "NOS" : name === "Execution Report" ? "ExecRpt" : name === "Order Cancel Request" ? "CxlReq" : name === "Order Cancel/Replace Request" ? "Cxl/Rep" : name === "Heartbeat" ? "HB" : name === "Logon" ? "Logon" : name === "Logout" ? "Logout" : name === "Reject" ? "Rej" : name.slice(0, 6))
             : name;
           return (
-            <span key={name} onClick={() => setLogFilter(isActive ? "" : name)}
+            <span key={name} onClick={() => setLogFilter(isActive ? "" : String(name || ""))}
               style={{ fontSize: isMobile ? "10px" : "10px", fontWeight: 600, padding: isMobile ? "2px 7px" : "2px 9px", borderRadius: "20px", background: isActive ? b.border : b.bg, color: isActive ? "#fff" : b.fg, border: "0.5px solid " + b.border, cursor: "pointer", transition: "all 0.15s", whiteSpace: "nowrap", lineHeight: "16px" }}
               title={name + " (" + count + ")"}
             >
@@ -1665,13 +1683,14 @@ function UnifiedInput({ t, onSingleResult, onLogResult, onClearAll, input, setIn
           value={input}
           onChange={e => { setInput(e.target.value); setFileName(null); }}
           onPaste={e => {
-            // Auto-parse 400ms after paste if it looks like a complete FIX message
+            const pasted = (e.clipboardData || window.clipboardData)?.getData("text") || "";
+            if (!pasted) return;
             setTimeout(() => {
-              const pasted = e.target.value || "";
-              if (pasted.includes("8=FIX") && pasted.includes("10=")) {
-                handleSubmit(pasted);
+              const combined = (input + pasted).trim();
+              if (combined.includes("8=FIX") && combined.includes("10=")) {
+                handleSubmit(combined);
               }
-            }, 400);
+            }, 350);
           }}
           rows={isMobile ? 4 : 5}
           placeholder={isMobile ? "Paste FIX message or log…" : "8=FIX.4.4|9=...|35=D|...  — or paste raw production messages containing binary SOH lines"}
