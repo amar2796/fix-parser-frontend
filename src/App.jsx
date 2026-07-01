@@ -1447,7 +1447,7 @@ function SessionResult({ messages, t, onTagClick, filterRef, tableFilter, setTab
             <button onClick={exportJSON} title="Export selected as JSON" disabled={!sel} style={{ height: "26px", padding: "0 8px", borderRadius: "6px", fontSize: "11px", border: "1px solid " + t.border, background: t.panelAlt, color: sel ? t.textMuted : t.textFaint, cursor: sel ? "pointer" : "default", whiteSpace: "nowrap", flexShrink: 0 }}>⬇{!isMobile && " JSON"}</button>
             <div style={{ display: "flex", alignItems: "center", gap: "3px", flexShrink: 0 }}>
               <span style={{ fontSize: "10px", color: t.textFaint }}>🔴</span>
-              <input type="number" value={spikeMs} onChange={e => setSpikeMs(Number(e.target.value))} min={1} style={{ width: isMobile ? "44px" : "52px", height: "24px", padding: "0 4px", fontSize: "16px", border: "1px solid " + t.border, borderRadius: "4px", background: t.inputBg, color: t.text, textAlign: "right" }} />
+              <input type="number" value={String(spikeMs)} onChange={e => setSpikeMs(Number(e.target.value) || 500)} min={1} style={{ width: isMobile ? "44px" : "52px", height: "24px", padding: "0 4px", fontSize: "16px", border: "1px solid " + t.border, borderRadius: "4px", background: t.inputBg, color: t.text, textAlign: "right" }} />
               <span style={{ fontSize: "10px", color: t.textFaint }}>ms</span>
             </div>
             <input value={logFilter} onChange={e => setLogFilter(e.target.value)} placeholder="Filter…" style={{ height: "26px", padding: "0 8px", borderRadius: "6px", fontSize: "14px", border: "1px solid " + t.border, background: t.inputBg, color: t.text, outline: "none", minWidth: 0, flex: 1, maxWidth: isMobile ? "100px" : "140px" }} />
@@ -1684,16 +1684,7 @@ function UnifiedInput({ t, onSingleResult, onLogResult, onClearAll, input, setIn
         <textarea
           value={input}
           onChange={e => { setInput(e.target.value); setFileName(null); }}
-          onPaste={e => {
-            const pasted = (e.clipboardData || window.clipboardData)?.getData("text") || "";
-            if (!pasted) return;
-            setTimeout(() => {
-              const combined = (input + pasted).trim();
-              if (combined.includes("8=FIX") && combined.includes("10=")) {
-                handleSubmit(combined);
-              }
-            }, 350);
-          }}
+
           rows={isMobile ? 4 : 5}
           placeholder={isMobile ? "Paste FIX message or log…" : "8=FIX.4.4|9=...|35=D|...  — or paste raw production messages containing binary SOH lines"}
           style={{ width: "100%", boxSizing: "border-box", fontFamily: "monospace", fontSize: "13px", padding: "10px 12px", border: "1px solid " + t.border, borderRadius: "8px", background: t.inputBg, color: t.text, resize: "vertical" }}
