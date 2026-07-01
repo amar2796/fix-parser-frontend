@@ -977,14 +977,14 @@ function SingleResult({ result, originalInput, t, onTagClick, filterRef, tableFi
 
       <div style={{ display: "flex", gap: "8px", margin: "12px 0", flexWrap: "wrap" }}>
         {[
-          ["Delimiter", result.delimiterDetected === "^" ? "SOH" : result.delimiterDetected],
-          ["Fields",    result.totalFields],
-          ["Checksum",  result.checksum.actual + " (calc " + result.checksum.calculated + ")"],
-          ["Body len",  result.bodyLength.actual + " (calc " + result.bodyLength.calculated + ")"],
+          ["Delimiter", result.delimiterDetected === "^" ? "SOH" : (result.delimiterDetected || "—")],
+          ["Fields",    result.totalFields ?? "—"],
+          ["Checksum",  result.checksum ? ((result.checksum.actual ?? "—") + " (calc " + (result.checksum.calculated ?? "—") + ")") : "—"],
+          ["Body len",  result.bodyLength ? ((result.bodyLength.actual ?? "—") + " (calc " + (result.bodyLength.calculated ?? "—") + ")") : "—"],
         ].map(([k, v]) => (
           <div key={k} style={{ padding: "7px 10px", background: t.panel, border: "1px solid " + t.border, borderRadius: "7px", flex: "1 1 130px", minWidth: 0 }}>
             <div style={{ fontSize: "10px", color: t.textMuted }}>{k.toUpperCase()}</div>
-            <div style={{ fontSize: "13px", fontWeight: 600, color: t.text, fontFamily: "monospace" }}>{v}</div>
+            <div style={{ fontSize: "13px", fontWeight: 600, color: t.text, fontFamily: "monospace" }}>{String(v ?? "—")}</div>
           </div>
         ))}
       </div>
@@ -1616,14 +1616,16 @@ function UnifiedInput({ t, onSingleResult, onLogResult, onClearAll, input, setIn
     try {
       if (rawIsLog) {
         const res = await fetch(API_LOG, { method: "POST", headers: { "Content-Type": "text/plain" }, body });
-        if (!res.ok) { const d = await res.json().catch(() => ({})); setError(d.message || `Server error ${res.status}`); return; }
-        const d = await res.json();
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok || d.status === "error") { setError(d.message || `Server error ${res.status}`); return; }
+        if (!d.messages || !Array.isArray(d.messages)) { setError("Unexpected response from server."); return; }
         saveHistory(raw);
         onLogResult(d.messages, raw);
       } else {
         const res = await fetch(API, { method: "POST", headers: { "Content-Type": "text/plain" }, body });
-        if (!res.ok) { const d = await res.json().catch(() => ({})); setError(d.message || `Server error ${res.status}`); return; }
-        const d = await res.json();
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok || d.status === "error") { setError(d.message || `Server error ${res.status}`); return; }
+        if (!d.components) { setError("Unexpected response from server."); return; }
         saveHistory(raw);
         onSingleResult(d, raw);
       }
