@@ -427,10 +427,24 @@ function FieldTable({ rows, sectionKey, t, onTagClick, filterText, isOpen, onTog
 
   const [copiedTag, setCopiedTag] = useState(null);
   const copyValue = (r) => {
-    navigator.clipboard.writeText(r.raw || "").then(() => {
-      setCopiedTag(r.tag);
-      setTimeout(() => setCopiedTag(null), 1500);
-    });
+    const text = r.raw || "";
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        setCopiedTag(r.tag);
+        setTimeout(() => setCopiedTag(null), 1500);
+      }).catch(() => {});
+    } else {
+      // Fallback for HTTP / older browsers
+      try {
+        const el = document.createElement("textarea");
+        el.value = text; el.style.position = "fixed"; el.style.opacity = "0";
+        document.body.appendChild(el); el.select();
+        document.execCommand("copy");
+        document.body.removeChild(el);
+        setCopiedTag(r.tag);
+        setTimeout(() => setCopiedTag(null), 1500);
+      } catch {}
+    }
   };
 
   const renderRow = (r, key, lastInSection, rowIndex) => (
@@ -1590,7 +1604,7 @@ function UnifiedInput({ t, onSingleResult, onLogResult, onClearAll, input, setIn
     const entry = { text, time: Date.now(), count: countFixStarts(text), label: fileName || (text.slice(0, 60) + "…") };
     const next = [entry, ...history.filter(h => h.text !== text)].slice(0, 10);
     setHistory(next);
-    localStorage.setItem("fix-history", JSON.stringify(next));
+    try { localStorage.setItem("fix-history", JSON.stringify(next)); } catch {}
   };
 
   const handleFile = e => {
@@ -1662,7 +1676,7 @@ function UnifiedInput({ t, onSingleResult, onLogResult, onClearAll, input, setIn
                         <div style={{ fontSize: "10px", color: t.textFaint, marginTop: "2px" }}>{new Date(h.time).toLocaleString()} · {h.count} msg{h.count !== 1 ? "s" : ""}</div>
                       </div>
                     ))}
-                    <div onClick={() => { setHistory([]); localStorage.removeItem("fix-history"); setShowHistory(false); }}
+                    <div onClick={() => { setHistory([]); try { localStorage.removeItem("fix-history"); } catch {} setShowHistory(false); }}
                       style={{ padding: "8px 12px", cursor: "pointer", color: t.red, fontSize: "11px", textAlign: "center", borderTop: "1px solid " + t.border }}
                       onMouseEnter={e => e.currentTarget.style.background = t.redBg}
                       onMouseLeave={e => e.currentTarget.style.background = "transparent"}
@@ -1789,11 +1803,13 @@ function useIsMobile() {
 }
 
 export default function App() {
-  const [themeName, setThemeName] = useState(() => localStorage.getItem("fix-theme") || "dark");
-  const t = T[themeName];
+  const [themeName, setThemeName] = useState(() => {
+    try { return localStorage.getItem("fix-theme") || "dark"; } catch { return "dark"; }
+  });
+  const t = T[themeName] || T.dark;
   const toggleTheme = () => setThemeName(n => {
     const next = n === "dark" ? "light" : "dark";
-    localStorage.setItem("fix-theme", next);
+    try { localStorage.setItem("fix-theme", next); } catch {}
     return next;
   });
 
@@ -1943,7 +1959,16 @@ export default function App() {
                 const encoded = encodeShare(textareaInput);
                 if (!encoded) return;
                 const url = `${window.location.origin}${window.location.pathname}?msg=${encoded}`;
-                navigator.clipboard.writeText(url).then(() => { setShareToast(true); setTimeout(() => setShareToast(false), 2500); });
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                  navigator.clipboard.writeText(url).then(() => { setShareToast(true); setTimeout(() => setShareToast(false), 2500); }).catch(() => {});
+                } else {
+                  try {
+                    const el = document.createElement("textarea");
+                    el.value = url; el.style.position = "fixed"; el.style.opacity = "0";
+                    document.body.appendChild(el); el.select(); document.execCommand("copy"); document.body.removeChild(el);
+                    setShareToast(true); setTimeout(() => setShareToast(false), 2500);
+                  } catch {}
+                }
               }}
               title="Copy shareable link"
               style={{ height: "32px", padding: isMobile ? "0 8px" : "0 12px", borderRadius: "6px", fontSize: "12px", border: "1px solid " + t.border, background: "transparent", color: t.textMuted, cursor: "pointer", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: "4px", transition: "border-color 0.15s, color 0.15s", flexShrink: 0 }}
