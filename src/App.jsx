@@ -667,12 +667,10 @@ function FieldSections({ result, t, onTagClick, filterText, isMobile }) {
                   border: "none", cursor: "pointer",
                   transition: "background 0.15s, color 0.15s",
                   flexShrink: 0,
+                  fontSize: "11px", fontWeight: 700, lineHeight: 1,
                 }}
               >
-                <svg width="9" height="9" viewBox="0 0 9 9" fill="none"
-                  style={{ transition: "transform 0.2s", transform: open ? "rotate(180deg)" : "rotate(0deg)" }}>
-                  <path d="M1.5 3l3 3 3-3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
+                {open ? "↑" : "↓"}
               </button>
             </div>
           );
