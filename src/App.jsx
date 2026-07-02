@@ -1608,8 +1608,9 @@ function UnifiedInput({ t, onSingleResult, onLogResult, onClearAll, input, setIn
   };
 
   const handleSubmit = async (overrideInput) => {
-    const raw = overrideInput || input;
-    if (!raw.trim()) return;
+    // Guard: if called from onClick, overrideInput is a SyntheticEvent - ignore it
+    const raw = (typeof overrideInput === "string" ? overrideInput : null) || input;
+    if (!raw || !raw.trim()) return;
     setLoading(true); setError(null);
     const body = normalizeForSend(raw);
     const rawIsLog = countFixStarts(raw) > 1;
@@ -1691,7 +1692,7 @@ function UnifiedInput({ t, onSingleResult, onLogResult, onClearAll, input, setIn
           onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") handleSubmit(); }}
         />
         <div style={{ display: "flex", gap: "10px", alignItems: "center", marginTop: "10px", flexWrap: "wrap" }}>
-          <PrimaryBtn onClick={handleSubmit} loading={loading} disabled={!input.trim()} t={t}>Parse Data</PrimaryBtn>
+          <PrimaryBtn onClick={() => handleSubmit()} loading={loading} disabled={!input.trim()} t={t}>Parse Data</PrimaryBtn>
           {!isMobile && <span style={{ fontSize: "11px", color: t.textMuted }}>🔒 Privacy First: Messages transit encrypted and are never stored or logged on disk.</span>}
           {isMobile && <span style={{ fontSize: "10px", color: t.textFaint }}>🔒 Encrypted · Never stored</span>}
         </div>
